@@ -104,6 +104,7 @@ set(CUTEFISH_TOOLKIT_PUBLIC_HEADERS
     ui/list_view.h
     ui/menu.h
     ui/navigation_buttons.h
+    ui/toolbar.h
     ui/painter.h
     ui/path.h
     ui/popup_glass.h
@@ -193,6 +194,7 @@ add_library(cutefish-toolkit SHARED
     ui/list_view.cpp
     ui/menu.cpp
     ui/navigation_buttons.cpp
+    ui/toolbar.cpp
     ui/multi_effect_blur.cpp
     ui/painter.cpp
     ui/raster_image.cpp

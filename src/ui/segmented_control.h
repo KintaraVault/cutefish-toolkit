@@ -29,6 +29,9 @@ public:
     ~SegmentedControl() override;
 
     void setItems(std::vector<std::string> items);
+    // Keep the text as the button's name; show a symbolic icon instead, or
+    // show both. Existing text-only controls are unaffected.
+    void setGlyphs(const std::vector<std::string>& glyphs, bool showLabels = false);
     size_t count() const { return m_segments.size(); }
     int currentIndex() const { return m_current; }
     // Does not call onCurrentChanged.

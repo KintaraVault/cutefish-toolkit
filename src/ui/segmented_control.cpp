@@ -10,6 +10,7 @@
 
 #include "base/event_loop.h"
 #include "ui/application.h"
+#include "ui/icon.h"
 #include "ui/keys.h"
 #include "ui/label.h"
 #include "ui/painter.h"
@@ -36,13 +37,32 @@ public:
         m_label->setFadesWhenDisabled(false);
         m_label->setTextAlignment(Label::TextAlignment::Center);
         m_label->setVerticallyCentered(true);
+        setName(m_label->text());
+        m_icon = addChild<Icon>(std::string(), 16);
+        m_icon->setVisible(false);
     }
 
     Label* label() const { return m_label; }
+    void setGlyph(const std::string& glyph, bool showLabel)
+    {
+        m_icon->setIconName(glyph);
+        m_icon->setVisible(!glyph.empty());
+        m_label->setVisible(glyph.empty() || showLabel);
+    }
+    double intrinsicWidth() const
+    {
+        return std::max(m_icon->isVisible() ? 28.0 : 0.0, m_label->isVisible() ? m_label->sizeHint().width : 0.0);
+    }
     bool acceptsFocus() const override { return true; }
 
 protected:
-    void layout() override { m_label->setGeometry(localRect()); }
+    void layout() override
+    {
+        const RectF box = localRect();
+        const bool stacked = m_icon->isVisible() && m_label->isVisible();
+        m_icon->setGeometry({(box.width - 16) / 2, stacked ? 1.0 : (box.height - 16) / 2, 16, 16});
+        m_label->setGeometry(stacked ? RectF {0, 17, box.width, box.height - 17} : box);
+    }
 
     bool keyPress(const KeyEvent& event) override
     {
@@ -76,6 +96,7 @@ private:
 
     SegmentedControl* m_control;
     Label* m_label;
+    Icon* m_icon;
 };
 
 SegmentedControl::SegmentedControl(std::vector<std::string> items, Style style)
@@ -115,6 +136,13 @@ void SegmentedControl::setCurrentIndex(int index)
     requestPaint();
 }
 
+void SegmentedControl::setGlyphs(const std::vector<std::string>& glyphs, bool showLabels)
+{
+    for (size_t i = 0; i < m_segments.size(); ++i)
+        m_segments[i]->setGlyph(i < glyphs.size() ? glyphs[i] : std::string(), showLabels);
+    requestLayout();
+}
+
 void SegmentedControl::setContentHeight(double height)
 {
     if (height == m_contentHeight)
@@ -146,7 +174,7 @@ double SegmentedControl::padding() const
 
 double SegmentedControl::implicitItemWidth(size_t index) const
 {
-    return index < m_segments.size() ? m_segments[index]->label()->sizeHint().width : 0;
+    return index < m_segments.size() ? m_segments[index]->intrinsicWidth() : 0;
 }
 
 SizeF SegmentedControl::sizeHint() const
