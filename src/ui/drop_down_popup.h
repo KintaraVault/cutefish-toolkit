@@ -14,6 +14,7 @@ namespace cutefish::ui {
 
 class View;
 class Window;
+struct PopupPlacement;
 
 // A view dropped down from a control in a popup window of its own, as a
 // combo box drops its list: on the menu's popup glass (an opaque fill
@@ -47,6 +48,8 @@ public:
     // gap pixels under the view, or under a rect of it in its coordinates,
     // from its left edge.
     void popupFor(View* view, double gap = 3, std::optional<RectF> rect = {});
+    // A rounded bubble centred under the control, with an arrow pointing at it.
+    void popoverFor(View* view, double gap = 3);
     void close();
     bool isOpen() const { return m_window != nullptr; }
     // The popup while open.
@@ -61,6 +64,7 @@ private:
 
     SizeF contentSize() const;
     void applySize(SizeF size);
+    void open(Window* parent, const PopupPlacement& placement, bool popover);
 
     // The content while closed; while open it lives in the surface.
     std::unique_ptr<View> m_ownedContent;

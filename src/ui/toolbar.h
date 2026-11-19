@@ -37,6 +37,8 @@ public:
     void setDisplay(Display display);
     Display display() const { return m_display; }
     void setEditing(bool editing);
+    // The on-screen item, for anchoring popovers. Invalidated when rebuilt.
+    View* itemView(const std::string& id) const;
     View* makePaletteItem(View& parent, const std::string& id, const std::string& label, const std::string& glyph);
     SizeF sizeHint() const override;
 

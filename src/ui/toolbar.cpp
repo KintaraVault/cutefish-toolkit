@@ -54,6 +54,7 @@ public:
     }
 
     bool acceptsPointer() const override { return true; }
+    const std::string& id() const { return m_id; }
 
 protected:
     void layout() override
@@ -165,6 +166,15 @@ const Toolbar::Item* Toolbar::find(const std::string& id) const
 {
     const auto it = std::find_if(m_items.begin(), m_items.end(), [&](const Item& item) { return item.id == id; });
     return it == m_items.end() ? nullptr : &*it;
+}
+
+View* Toolbar::itemView(const std::string& id) const
+{
+    for (const auto& child : children()) {
+        if (auto* tile = dynamic_cast<Tile*>(child.get()); tile && tile->id() == id)
+            return tile;
+    }
+    return nullptr;
 }
 
 void Toolbar::setOrder(const std::vector<std::string>& order)

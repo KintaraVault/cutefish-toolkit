@@ -3,10 +3,12 @@
 
 #include "ui/drop_down_popup.h"
 
+#include <algorithm>
 #include <cmath>
 
 #include "base/event_loop.h"
 #include "ui/application.h"
+#include "ui/bubble_shape.h"
 #include "ui/embedded_window.h"
 #include "ui/keys.h"
 #include "ui/painter.h"
@@ -21,19 +23,49 @@ namespace cutefish::ui {
 class DropDownPopup::Surface : public View
 {
 public:
-    explicit Surface(DropDownPopup* popup)
-        : m_popup(popup)
+    explicit Surface(DropDownPopup* popup, bool bubble, const PopupPlacement& placement)
+        : m_popup(popup), m_bubble(bubble), m_placement(placement)
     {
     }
 
     bool acceptsPointer() const override { return true; }
     bool acceptsFocus() const override { return true; }
 
+    double arrowLength() const { return m_bubble ? 8 : 0; }
+
+    void updatePlacement(Window& popup, SizeF size)
+    {
+        if (!m_bubble)
+            return;
+        const double centre = m_placement.anchorRect.x + std::floor(m_placement.anchorRect.width / 2);
+        const double half = std::floor(size.width / 2);
+        const double right = m_parentWidth - size.width;
+        const double x = right >= 0 ? std::clamp(centre - half, 0.0, right) : centre - half;
+        m_placement.offset.x = x + half - centre;
+        m_arrowX = centre - x;
+        popup.setPopupPlacement(m_placement);
+    }
+
+    BubbleShape shape(SizeF size) const
+    {
+        BubbleShape shape;
+        shape.width = size.width;
+        shape.height = size.height;
+        shape.radius = Theme::current().windowRadius;
+        shape.arrowEdge = m_bubble ? BubbleShape::Edge::Top : BubbleShape::Edge::None;
+        shape.arrowPosition = m_arrowX;
+        shape.arrowWidth = 20;
+        shape.arrowLength = arrowLength();
+        return shape;
+    }
+
+    void setParentWidth(double width) { m_parentWidth = width; }
+
 protected:
     void layout() override
     {
         for (const auto& child : children())
-            child->setGeometry(localRect());
+            child->setGeometry(localRect().adjusted(0, arrowLength(), 0, 0));
     }
 
     void paint(Painter& painter) override
@@ -45,7 +77,13 @@ protected:
             return;
         // Without the compositor's blur: opaque, in the window radius.
         const Theme& theme = Theme::current();
-        painter.fillRoundedRect(localRect(), theme.windowRadius, theme.secondBackground);
+        if (m_bubble) {
+            const auto path = shape({localRect().width, localRect().height}).path();
+            painter.fillPath(path, theme.secondBackground);
+            painter.strokePath(path, theme.text.withAlpha(0.18), 1 / painter.scale());
+        } else {
+            painter.fillRoundedRect(localRect(), theme.windowRadius, theme.secondBackground);
+        }
     }
 
     bool keyPress(const KeyEvent& event) override
@@ -59,6 +97,10 @@ protected:
 private:
     DropDownPopup* m_popup;
     PopupGlass m_glass;
+    bool m_bubble;
+    PopupPlacement m_placement;
+    double m_parentWidth = 0;
+    double m_arrowX = 0;
 };
 
 DropDownPopup::DropDownPopup() = default;
@@ -88,18 +130,24 @@ SizeF DropDownPopup::contentSize() const
         return {};
     // MenuPopupWindow's size: the content's implicit size, rounded up.
     const double width = std::ceil(m_content->sizeHint().width);
-    return {width, std::ceil(m_content->heightForWidth(width))};
+    return {width, std::ceil(m_content->heightForWidth(width)) + (m_surface ? m_surface->arrowLength() : 0)};
 }
 
 void DropDownPopup::applySize(SizeF size)
 {
     m_window->resize(size);
-    m_window->setBackgroundBlur({0, 0, size.width, size.height}, Theme::current().windowRadius);
+    m_surface->updatePlacement(*m_window, size);
+    if (m_surface->arrowLength()) {
+        const auto shape = m_surface->shape(size);
+        m_window->setBackgroundBlur(shape.bodyRect(), shape.radius);
+        m_window->setBackgroundBlurShape(shape.path());
+    } else {
+        m_window->setBackgroundBlur({0, 0, size.width, size.height}, Theme::current().windowRadius);
+    }
 }
 
 void DropDownPopup::popupFor(View* view, double gap, std::optional<RectF> rect)
 {
-    close();
     Window* parent = view ? view->window() : nullptr;
     if (!parent)
         return;
@@ -115,9 +163,33 @@ void DropDownPopup::popupFor(View* view, double gap, std::optional<RectF> rect)
     placement.anchor = PopupAnchor::BottomLeft;
     placement.gravity = PopupAnchor::BottomRight;
     placement.flipX = false;
+    open(parent, placement, false);
+}
 
+void DropDownPopup::popoverFor(View* view, double gap)
+{
+    Window* parent = view ? view->window() : nullptr;
+    if (!parent)
+        return;
+    const auto topLeft = view->mapToWindow({0, 0});
+    const auto box = view->localRect();
+    PopupPlacement placement;
+    placement.anchorRect = {std::round(topLeft.x), std::round(topLeft.y), std::ceil(box.width), std::ceil(box.height)};
+    placement.anchor = PopupAnchor::Bottom;
+    placement.gravity = PopupAnchor::Bottom;
+    placement.offset.y = gap;
+    placement.flipX = false;
+    // Toolbar popovers open downward; don't flip the top arrow away from the anchor.
+    placement.flipY = false;
+    open(parent, placement, true);
+}
+
+void DropDownPopup::open(Window* parent, const PopupPlacement& placement, bool popover)
+{
+    close();
     m_window = Window::createPopup(parent, placement, true);
-    auto surface = std::make_unique<Surface>(this);
+    auto surface = std::make_unique<Surface>(this, popover, placement);
+    surface->setParentWidth(parent->size().width);
     m_surface = surface.get();
     if (m_ownedContent)
         m_surface->addChild(std::move(m_ownedContent));

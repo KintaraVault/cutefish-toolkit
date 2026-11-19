@@ -185,3 +185,21 @@ TEST(DropDownPopupTest, ResizesToItsContent)
     EXPECT_EQ(f.popup.contentView(), box);
     EXPECT_EQ(f.popup.window()->size(), (SizeF{100, 40}));
 }
+
+TEST(DropDownPopupTest, PopoverReservesAndPaintsItsArrow)
+{
+    Fixture f;
+    f.popup.popoverFor(f.anchor);
+    ASSERT_TRUE(f.popup.isOpen());
+    const Image image = f.popup.window()->grab();
+    EXPECT_EQ(f.popup.window()->size(), (SizeF{252, 135}));
+    EXPECT_EQ(f.content->geometry(), (RectF{0, 8, 252, 127}));
+    const auto anchor = f.anchor->mapToWindow({f.anchor->localRect().width / 2, 0});
+    // The popup is inset to the parent at the left edge; the tip still points
+    // back to the centre of the anchor, not to the centre of the inset popup.
+    EXPECT_GT(image.pixel(int(anchor.x), 4).a, 0);
+    EXPECT_EQ(image.pixel(image.width() / 2, 4).a, 0);
+    EXPECT_EQ(image.pixel(image.width() / 2, image.height() / 2).a, 255);
+    f.popup.window()->onCloseRequested();
+    EXPECT_FALSE(f.popup.isOpen());
+}
