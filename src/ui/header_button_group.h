@@ -24,6 +24,7 @@ public:
     // One of the toolkit's glyphs, such as "search" or "sidebar".
     HeaderButton* addButton(std::string glyph, double glyphSize = 16);
     const std::vector<HeaderButton*>& buttons() const { return m_buttons; }
+    void setToolbarAppearance(bool enabled);
 
     SizeF sizeHint() const override;
     RectF visualRect() const override;
@@ -34,6 +35,7 @@ protected:
 
 private:
     std::vector<HeaderButton*> m_buttons;
+    bool m_toolbarAppearance = false;
 };
 
 } // namespace cutefish::ui

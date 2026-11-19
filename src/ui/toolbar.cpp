@@ -5,6 +5,7 @@
 #include "base/event_loop.h"
 #include "ui/drag.h"
 #include "ui/icon.h"
+#include "ui/keys.h"
 #include "ui/label.h"
 #include "ui/painter.h"
 #include "ui/theme.h"
@@ -43,7 +44,7 @@ public:
             glyphs.push_back(glyph);
         }
         for (const auto& icon : glyphs)
-            m_icons.push_back(addChild<Icon>(icon, 18));
+            m_icons.push_back(addChild<Icon>(icon, 20));
         if (item && item->dropdown)
             m_chevron = addChild<Icon>("chevron-down-small", 8);
         m_label = addChild<Label>(std::move(label));
@@ -54,6 +55,7 @@ public:
     }
 
     bool acceptsPointer() const override { return true; }
+    bool acceptsFocus() const override { return !spacer(); }
     const std::string& id() const { return m_id; }
 
 protected:
@@ -64,17 +66,20 @@ protected:
         m_label->setVisible(m_id != DefaultSet && (display != Display::Icons || spacer()) && (!spacer() || m_owner.m_editing));
         const bool stacked = (m_palette && spacer()) || (icon && m_label->isVisible());
         const RectF box = localRect();
-        double x = (box.width - (m_icons.empty() ? 0.0 : (m_icons.size() - 1) * 22.0 + 18) - (m_chevron ? 9 : 0)) / 2;
+        const auto plate = plateRect();
+        const double step = m_icons.size() == 4 ? std::min(32.0, (plate.width - 4) / 4) : 23.0;
+        double x = (box.width - (m_icons.empty() ? 0.0 : (m_icons.size() - 1) * step + 20) - (m_chevron ? 9 : 0)) / 2;
         for (auto* glyph : m_icons) {
             glyph->setVisible(icon);
-            glyph->setGeometry({x, stacked ? 4 : (box.height - 18) / 2, 18, 18});
-            x += 22;
+            glyph->setGeometry({x, plate.y + (plate.height - 20) / 2, 20, 20});
+            x += step;
         }
         if (m_chevron) {
             m_chevron->setVisible(icon);
-            m_chevron->setGeometry({x - 2, stacked ? 9 : (box.height - 8) / 2, 8, 8});
+            m_chevron->setGeometry({x - 1, plate.y + (plate.height - 8) / 2, 8, 8});
         }
-        m_label->setGeometry({1, stacked ? 25.0 : 0.0, std::max(0.0, box.width - 2), stacked ? box.height - 25 : box.height});
+        m_label->setGeometry({1, stacked ? plate.bottom() : 0.0, std::max(0.0, box.width - 2), stacked ? box.height - plate.bottom() : box.height});
+        m_label->setColor(stacked ? std::optional<ColorId>(ColorId::DisabledText) : std::nullopt);
     }
 
     void paint(Painter& painter) override
@@ -85,17 +90,35 @@ protected:
         const auto& theme = Theme::current();
         if (spacer() || m_id == DefaultSet) {
             if (m_palette && spacer())
-                bounds = {(bounds.width - 24) / 2, 1, 24, 22};
+                bounds = {(bounds.width - 28) / 2, 2, 28, 26};
             painter.drawRoundedRect(bounds.adjusted(1, 1, -1, -1), {3}, theme.text.withAlpha(m_hover ? 0.06 : 0),
-                                    1, theme.text.withAlpha(0.23));
+                                     1, theme.text.withAlpha(0.23));
+            if (m_palette && m_id == FlexibleSpace) {
+                const double y = bounds.y + bounds.height / 2;
+                const double x1 = bounds.x + 5;
+                const double x2 = bounds.right() - 5;
+                const auto ink = theme.text.withAlpha(0.40);
+                painter.drawLine({x1, y}, {x2, y}, ink, 1);
+                painter.drawLine({x1, y}, {x1 + 3, y - 3}, ink, 1);
+                painter.drawLine({x1, y}, {x1 + 3, y + 3}, ink, 1);
+                painter.drawLine({x2, y}, {x2 - 3, y - 3}, ink, 1);
+                painter.drawLine({x2, y}, {x2 - 3, y + 3}, ink, 1);
+            }
             return;
         }
-        if (m_palette || m_owner.display() == Display::IconsAndText) {
-            const double width = std::min(bounds.width, std::max(m_chevron ? 36.0 : 30.0, m_icons.size() * 22.0 + 5));
-            bounds = {(bounds.width - width) / 2, 0, width, std::min(26.0, bounds.height)};
+        bounds = plateRect();
+        const bool joined = !m_palette && ((m_index > 0 && m_owner.sharesPlate(m_index - 1, m_index))
+            || m_owner.sharesPlate(m_index, m_index + 1));
+        if (!joined)
+            toolbar_surface::capsule(painter, bounds, theme.darkMode);
+        if (isEnabled() && (m_hover || m_pressed || hasFocus()))
+            toolbar_surface::highlight(painter, bounds.adjusted(2, 2, -2, -2), theme.darkMode, m_pressed);
+        if (!m_palette && m_owner.m_editing && m_id == m_owner.m_previewItem && m_owner.m_previewIndex >= 0
+            && size_t(m_owner.m_previewIndex) < m_icons.size() && m_icons[size_t(m_owner.m_previewIndex)]->isVisible()) {
+            const auto glyph = m_icons[size_t(m_owner.m_previewIndex)]->geometry();
+            toolbar_surface::highlight(painter, {glyph.x + glyph.width / 2 - 14, bounds.y + 3, 28, bounds.height - 6},
+                                       theme.darkMode, false, true);
         }
-        if (!m_palette || m_hover || m_pressed)
-            toolbar_surface::capsule(painter, bounds, theme.darkMode, m_pressed ? 0.13 : m_hover ? 0.065 : 0);
     }
 
     void pointerEnter() override { m_hover = true; requestPaint(); }
@@ -126,10 +149,49 @@ protected:
         const bool activate = m_pressed && localRect().contains(event.position) && event.button == MouseButton::Left;
         m_pressed = false;
         requestPaint();
-        if (!activate)
-            return;
+        if (activate)
+            activated();
+    }
+
+    bool keyPress(const KeyEvent& event) override
+    {
+        if (event.modifiers != NoModifier || (event.key != key::Space && event.key != key::Return))
+            return false;
+        if (!m_pressed) {
+            m_pressed = true;
+            requestPaint();
+        }
+        return true;
+    }
+
+    bool keyRelease(const KeyEvent& event) override
+    {
+        if (!m_pressed || (event.key != key::Space && event.key != key::Return))
+            return false;
+        m_pressed = false;
+        requestPaint();
+        activated();
+        return true;
+    }
+
+    void focusIn(FocusReason) override { requestPaint(); }
+    void focusOut() override { m_pressed = false; requestPaint(); }
+
+private:
+    RectF plateRect() const
+    {
+        const auto box = localRect();
+        if (m_id == DefaultSet)
+            return box;
+        const double height = std::min(30.0, box.height);
+        const double width = m_palette ? std::min(box.width, m_icons.size() > 1 ? m_icons.size() * 32.0 + 4 : m_chevron ? 40.0 : 30.0) : box.width;
+        return {(box.width - width) / 2, 0, width, height};
+    }
+
+    void activated()
+    {
         if (!m_owner.m_editing && m_owner.onActivated)
-            m_owner.onActivated(m_id, mapToWindow({0, geometry().height + 2}));
+            m_owner.onActivated(m_id, mapToWindow({0, plateRect().bottom() + 2}));
         else if (m_palette) {
             auto* owner = &m_owner;
             base::EventLoop::current()->post([owner, alive = owner->m_alive, id = m_id] {
@@ -139,7 +201,6 @@ protected:
         }
     }
 
-private:
     bool spacer() const { return m_id == Space || m_id == FlexibleSpace; }
     Toolbar& m_owner;
     std::string m_id;
@@ -166,6 +227,15 @@ const Toolbar::Item* Toolbar::find(const std::string& id) const
 {
     const auto it = std::find_if(m_items.begin(), m_items.end(), [&](const Item& item) { return item.id == id; });
     return it == m_items.end() ? nullptr : &*it;
+}
+
+bool Toolbar::sharesPlate(size_t first, size_t second) const
+{
+    if (second >= m_order.size() || first >= m_order.size())
+        return false;
+    const auto* a = find(m_order[first]);
+    const auto* b = find(m_order[second]);
+    return a && b && !a->create && !b->create && !a->group.empty() && a->group == b->group;
 }
 
 View* Toolbar::itemView(const std::string& id) const
@@ -207,6 +277,18 @@ void Toolbar::setEditing(bool editing)
     rebuild();
 }
 
+void Toolbar::setPreviewSelection(std::string id, int index)
+{
+    if (m_previewItem == id && m_previewIndex == index)
+        return;
+    if (auto* tile = itemView(m_previewItem))
+        tile->requestPaint();
+    m_previewItem = std::move(id);
+    m_previewIndex = index;
+    if (auto* tile = itemView(m_previewItem))
+        tile->requestPaint();
+}
+
 View* Toolbar::makePaletteItem(View& parent, const std::string& id, const std::string& label, const std::string& glyph)
 {
     return parent.addChild<Tile>(*this, id, label, glyph, -1, true);
@@ -236,7 +318,10 @@ void Toolbar::rebuild()
 
 SizeF Toolbar::sizeHint() const
 {
-    double width = m_order.empty() ? 0 : (m_order.size() - 1) * kGap;
+    double width = 0;
+    for (size_t i = 1; i < m_order.size(); ++i)
+        if (!sharesPlate(i - 1, i))
+            width += kGap;
     for (const auto& id : m_order) {
         if (const auto* item = find(id)) {
             Label label(item->label);
@@ -245,7 +330,7 @@ SizeF Toolbar::sizeHint() const
             width += id == Space ? 17 : 8;
         }
     }
-    return {width, m_display == Display::IconsAndText ? 38.0 : 30.0};
+    return {width, m_display == Display::IconsAndText ? 40.0 : 30.0};
 }
 
 void Toolbar::layout()
@@ -254,6 +339,8 @@ void Toolbar::layout()
     const double extra = flexible ? std::max(0.0, geometry().width - sizeHint().width) / flexible : 0;
     double x = 0;
     for (size_t i = 0; i < m_order.size(); ++i) {
+        if (i && !sharesPlate(i - 1, i))
+            x += kGap;
         const auto& id = m_order[i];
         const Item* item = find(id);
         double width = id == Space ? 17 : 8 + extra;
@@ -262,7 +349,7 @@ void Toolbar::layout()
             width = m_display == Display::Icons ? item->width : std::max(item->width, label.sizeHint().width + 8);
         }
         children()[i]->setGeometry({x, 0, width, geometry().height});
-        x += width + kGap;
+        x += width;
     }
 }
 
@@ -279,8 +366,19 @@ int Toolbar::insertion(double x) const
 
 void Toolbar::paint(Painter& painter)
 {
-    if (m_editing)
-        painter.fillRect(localRect(), Theme::current().text.withAlpha(0.05));
+    for (size_t i = 0; i + 1 < children().size();) {
+        if (!sharesPlate(i, i + 1)) {
+            ++i;
+            continue;
+        }
+        const size_t start = i;
+        while (sharesPlate(i, i + 1))
+            ++i;
+        const auto a = children()[start]->geometry();
+        const auto b = children()[i]->geometry();
+        toolbar_surface::capsule(painter, {a.x, 0, b.right() - a.x, std::min(30.0, a.height)}, Theme::current().darkMode);
+        ++i;
+    }
     if (m_insert >= 0) {
         const auto bounds = children().empty() ? RectF {} : children().back()->geometry();
         const double x = m_insert < int(children().size()) ? children()[size_t(m_insert)]->geometry().x : bounds.x + bounds.width;

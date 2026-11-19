@@ -6,6 +6,7 @@
 #include "ui/header_button.h"
 #include "ui/painter.h"
 #include "ui/theme.h"
+#include "ui/toolbar_surface.h"
 #include "ui/window.h"
 #include "ui/window_controls.h"
 
@@ -35,19 +36,27 @@ SizeF HeaderButtonGroup::sizeHint() const
         if (button->isVisible())
             ++visible;
     }
-    return {visible * kSegment, kSegment};
+    const double segment = m_toolbarAppearance ? 30 : kSegment;
+    return {visible * segment, segment};
+}
+
+void HeaderButtonGroup::setToolbarAppearance(bool enabled)
+{
+    m_toolbarAppearance = enabled;
+    requestLayout();
+    requestPaint();
 }
 
 RectF HeaderButtonGroup::visualRect() const
 {
-    return window_controls::visualRect(localRect(), window_controls::State {});
+    return m_toolbarAppearance ? localRect() : window_controls::visualRect(localRect(), window_controls::State {});
 }
 
 void HeaderButtonGroup::layout()
 {
     const RectF bounds = localRect();
     const SizeF hint = sizeHint();
-    const double width = hint.width > 0 ? bounds.width * kSegment / hint.width : 0;
+    const double width = hint.width > 0 ? bounds.width * hint.height / hint.width : 0;
     double x = 0;
     for (HeaderButton* button : m_buttons) {
         if (!button->isVisible())
@@ -62,7 +71,10 @@ void HeaderButtonGroup::paint(Painter& painter)
     const Window* window = this->window();
     const bool dark = window ? window->headerDarkMode() : Theme::current().darkMode;
     const RectF bounds = localRect();
-    window_controls::paintGroupPlate(painter, bounds, dark);
+    if (m_toolbarAppearance)
+        toolbar_surface::capsule(painter, bounds, dark);
+    else
+        window_controls::paintGroupPlate(painter, bounds, dark);
     const Color edge = (dark ? Color::rgb(0xFFFFFF) : Color::rgb(0x000000)).withAlpha(dark ? 0.14 : 0.12);
     bool first = true;
     for (const HeaderButton* button : m_buttons) {

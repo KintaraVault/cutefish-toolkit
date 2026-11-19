@@ -14,6 +14,7 @@
 
 namespace cutefish::ui {
 
+class Label;
 // A row of equal buttons, one of them current: a segmented control, a pill, or
 // its tab bar, a rounded box. Each button is a Tab stop of its own; Space
 // presses it and picks it on release.
@@ -32,7 +33,8 @@ public:
     // Keep the text as the button's name; show a symbolic icon instead, or
     // show both. Existing text-only controls are unaffected.
     void setGlyphs(const std::vector<std::string>& glyphs, bool showLabels = false);
-    void setToolbarAppearance(bool enabled) { m_toolbarAppearance = enabled; requestPaint(); }
+    void setToolbarAppearance(bool enabled);
+    void setToolbarCaption(std::string text);
     size_t count() const { return m_segments.size(); }
     int currentIndex() const { return m_current; }
     // Does not call onCurrentChanged.
@@ -66,12 +68,14 @@ protected:
 
 private:
     bool m_toolbarAppearance = false;
+    Label* m_toolbarCaption = nullptr;
     int m_toolbarHovered = -1;
     void pointerMove(const PointerEvent& event) override;
     void pointerLeave() override;
     class Segment;
 
     RectF itemRect(size_t index) const;
+    RectF trackRect() const;
     int itemAt(PointF point) const;
     void pick(int index);
     void setPressed(int index);

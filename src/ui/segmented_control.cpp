@@ -45,6 +45,7 @@ public:
     }
 
     Label* label() const { return m_label; }
+    void updateGlyphSize() { m_icon->setSize(m_control->m_toolbarAppearance ? 20 : 16); }
     void setGlyph(const std::string& glyph, bool showLabel)
     {
         m_icon->setIconName(glyph);
@@ -62,7 +63,8 @@ protected:
     {
         const RectF box = localRect();
         const bool stacked = m_icon->isVisible() && m_label->isVisible();
-        m_icon->setGeometry({(box.width - 16) / 2, stacked ? 1.0 : (box.height - 16) / 2, 16, 16});
+        const double size = m_control->m_toolbarAppearance ? 20 : 16;
+        m_icon->setGeometry({(box.width - size) / 2, stacked ? 1.0 : (box.height - size) / 2, size, size});
         m_label->setGeometry(stacked ? RectF {0, 17, box.width, box.height - 17} : box);
     }
 
@@ -87,7 +89,9 @@ protected:
     {
         if (m_control->m_pressed == index())
             m_control->setPressed(-1);
+        m_control->requestPaint();
     }
+    void focusIn(FocusReason) override { m_control->requestPaint(); }
 
 private:
     int index() const
@@ -121,6 +125,7 @@ void SegmentedControl::setItems(std::vector<std::string> items)
     m_segments.clear();
     for (std::string& item : items) {
         Segment* segment = addChild<Segment>(this, std::move(item));
+        segment->updateGlyphSize();
         segment->label()->setFontSize(m_fontSize);
         m_segments.push_back(segment);
     }
@@ -142,6 +147,31 @@ void SegmentedControl::setGlyphs(const std::vector<std::string>& glyphs, bool sh
 {
     for (size_t i = 0; i < m_segments.size(); ++i)
         m_segments[i]->setGlyph(i < glyphs.size() ? glyphs[i] : std::string(), showLabels);
+    requestLayout();
+}
+
+void SegmentedControl::setToolbarAppearance(bool enabled)
+{
+    m_toolbarAppearance = enabled;
+    if (m_toolbarCaption)
+        m_toolbarCaption->setVisible(enabled && !m_toolbarCaption->text().empty());
+    for (auto* segment : m_segments)
+        segment->updateGlyphSize();
+    requestLayout();
+    requestPaint();
+}
+
+void SegmentedControl::setToolbarCaption(std::string text)
+{
+    if (!m_toolbarCaption) {
+        m_toolbarCaption = addChild<Label>();
+        m_toolbarCaption->setFontSize(10);
+        m_toolbarCaption->setColor(ColorId::DisabledText);
+        m_toolbarCaption->setTextAlignment(Label::TextAlignment::Center);
+        m_toolbarCaption->setVerticallyCentered(true);
+    }
+    m_toolbarCaption->setText(std::move(text));
+    m_toolbarCaption->setVisible(m_toolbarAppearance && !m_toolbarCaption->text().empty());
     requestLayout();
 }
 
@@ -171,7 +201,7 @@ void SegmentedControl::setTrackColor(std::optional<ColorRecipe> color)
 
 double SegmentedControl::padding() const
 {
-    return m_style == Style::Segmented ? kSegmentedPadding : 0;
+    return m_style == Style::Segmented ? (m_toolbarAppearance ? 3 : kSegmentedPadding) : 0;
 }
 
 double SegmentedControl::implicitItemWidth(size_t index) const
@@ -184,13 +214,22 @@ SizeF SegmentedControl::sizeHint() const
     double width = 0;
     for (size_t i = 0; i < m_segments.size(); ++i)
         width += implicitItemWidth(i);
-    return {width + 2 * padding() + Theme::current().smallSpacing, m_contentHeight + 2 * padding()};
+    return {width + 2 * padding() + Theme::current().smallSpacing,
+        m_contentHeight + 2 * padding() + (m_toolbarCaption && m_toolbarCaption->isVisible() ? 10 : 0)};
+}
+
+RectF SegmentedControl::trackRect() const
+{
+    auto rect = localRect();
+    if (m_toolbarCaption && m_toolbarCaption->isVisible())
+        rect.height = std::max(0.0, rect.height - 10);
+    return rect;
 }
 
 // Buttons without a width of their own get equal shares.
 RectF SegmentedControl::itemRect(size_t index) const
 {
-    const RectF inner = localRect().adjusted(padding(), padding(), -padding(), -padding());
+    const RectF inner = trackRect().adjusted(padding(), padding(), -padding(), -padding());
     const double width = m_segments.empty() ? 0 : inner.width / double(m_segments.size());
     return {inner.x + width * double(index), inner.y, width, inner.height};
 }
@@ -208,6 +247,8 @@ void SegmentedControl::layout()
 {
     for (size_t i = 0; i < m_segments.size(); ++i)
         m_segments[i]->setGeometry(itemRect(i));
+    if (m_toolbarCaption && m_toolbarCaption->isVisible())
+        m_toolbarCaption->setGeometry({0, trackRect().height, localRect().width, 10});
 }
 
 void SegmentedControl::paint(Painter& painter)
@@ -215,12 +256,18 @@ void SegmentedControl::paint(Painter& painter)
     const Theme& theme = Theme::current();
     const RectF bounds = localRect();
     if (m_toolbarAppearance && m_style == Style::Segmented) {
-        toolbar_surface::capsule(painter, bounds, theme.darkMode);
+        toolbar_surface::capsule(painter, trackRect(), theme.darkMode);
         for (size_t i = 0; i < m_segments.size(); ++i) {
             const int index = int(i);
-            if (index == m_pressed || index == m_current || index == m_toolbarHovered)
-                toolbar_surface::capsule(painter, itemRect(i).adjusted(1, 0, -1, 0), theme.darkMode,
-                    index == m_pressed ? 0.22 : index == m_current ? 0.15 : 0.065);
+            const auto item = itemRect(i);
+            if (index == m_pressed || index == m_current || index == m_toolbarHovered || m_segments[i]->hasFocus()) {
+                toolbar_surface::highlight(painter, item.adjusted(1, 0, -1, 0), theme.darkMode,
+                    index == m_pressed, index == m_current);
+            }
+            if (index > 0 && index != m_current && index - 1 != m_current
+                && index != m_toolbarHovered && index - 1 != m_toolbarHovered)
+                painter.drawVerticalLine(item.x, item.y + 4, item.height - 8,
+                    theme.text.withAlpha(theme.darkMode ? 0.095 : 0.12));
         }
         return;
     }
