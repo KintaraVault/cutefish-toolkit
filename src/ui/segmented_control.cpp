@@ -3,6 +3,7 @@
 
 #include "ui/color_provider.h"
 #include "ui/segmented_control.h"
+#include "ui/toolbar_surface.h"
 
 #include <algorithm>
 #include <chrono>
@@ -38,6 +39,7 @@ public:
         m_label->setTextAlignment(Label::TextAlignment::Center);
         m_label->setVerticallyCentered(true);
         setName(m_label->text());
+        setToolTip(m_label->text());
         m_icon = addChild<Icon>(std::string(), 16);
         m_icon->setVisible(false);
     }
@@ -212,6 +214,16 @@ void SegmentedControl::paint(Painter& painter)
 {
     const Theme& theme = Theme::current();
     const RectF bounds = localRect();
+    if (m_toolbarAppearance && m_style == Style::Segmented) {
+        toolbar_surface::capsule(painter, bounds, theme.darkMode);
+        for (size_t i = 0; i < m_segments.size(); ++i) {
+            const int index = int(i);
+            if (index == m_pressed || index == m_current || index == m_toolbarHovered)
+                toolbar_surface::capsule(painter, itemRect(i).adjusted(1, 0, -1, 0), theme.darkMode,
+                    index == m_pressed ? 0.22 : index == m_current ? 0.15 : 0.065);
+        }
+        return;
+    }
     const Color plate = color(ColorId::SegmentedControlPlate);
     const double tabRadius = theme.smallRadius + 2;
     if (m_style == Style::Segmented) {
@@ -241,6 +253,25 @@ void SegmentedControl::paint(Painter& painter)
     }
 }
 
+void SegmentedControl::pointerMove(const PointerEvent& event)
+{
+    if (!m_toolbarAppearance)
+        return;
+    const int index = itemAt(event.position);
+    if (index != m_toolbarHovered) {
+        m_toolbarHovered = index;
+        requestPaint();
+    }
+}
+
+void SegmentedControl::pointerLeave()
+{
+    if (m_toolbarHovered >= 0) {
+        m_toolbarHovered = -1;
+        requestPaint();
+    }
+}
+
 void SegmentedControl::enabledChanged()
 {
     updateColors();
@@ -265,6 +296,8 @@ void SegmentedControl::setPressed(int index)
     if (index == m_pressed)
         return;
     m_pressed = index;
+    if (m_toolbarAppearance)
+        requestPaint();
     // A quick click shows no pressed label; a held press does.
     m_pressShown = false;
     if (m_pressTimer) {

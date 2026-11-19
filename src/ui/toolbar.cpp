@@ -8,7 +8,7 @@
 #include "ui/label.h"
 #include "ui/painter.h"
 #include "ui/theme.h"
-#include "ui/window_controls.h"
+#include "ui/toolbar_surface.h"
 
 #include <algorithm>
 #include <cmath>
@@ -25,8 +25,27 @@ public:
         : m_owner(owner), m_id(std::move(id)), m_index(index), m_palette(palette)
     {
         setName(label);
-        m_icon = addChild<Icon>(glyph, 16);
-        m_icon->setVisible(!glyph.empty());
+        setToolTip(label);
+        const auto* item = owner.find(m_id);
+        std::vector<std::string> glyphs;
+        if (m_id == DefaultSet) {
+            for (const auto& id : owner.m_defaults) {
+                if (const auto* fallback = owner.find(id)) {
+                    if (!fallback->previewGlyphs.empty())
+                        glyphs.insert(glyphs.end(), fallback->previewGlyphs.begin(), fallback->previewGlyphs.end());
+                    else if (!fallback->glyph.empty())
+                        glyphs.push_back(fallback->glyph);
+                }
+            }
+        } else if (item && !item->previewGlyphs.empty()) {
+            glyphs = item->previewGlyphs;
+        } else if (!glyph.empty()) {
+            glyphs.push_back(glyph);
+        }
+        for (const auto& icon : glyphs)
+            m_icons.push_back(addChild<Icon>(icon, 18));
+        if (item && item->dropdown)
+            m_chevron = addChild<Icon>("chevron-down-small", 8);
         m_label = addChild<Label>(std::move(label));
         m_label->setFontSize(10);
         m_label->setElide(Label::Elide::Right);
@@ -40,13 +59,21 @@ protected:
     void layout() override
     {
         const auto display = m_palette ? Display::IconsAndText : m_owner.display();
-        const bool icon = display != Display::Text && !spacer() && m_id != DefaultSet;
-        m_icon->setVisible(icon);
-        m_label->setVisible((display != Display::Icons || spacer()) && (!spacer() || m_owner.m_editing));
-        const bool stacked = icon && m_label->isVisible();
+        const bool icon = display != Display::Text && !m_icons.empty();
+        m_label->setVisible(m_id != DefaultSet && (display != Display::Icons || spacer()) && (!spacer() || m_owner.m_editing));
+        const bool stacked = (m_palette && spacer()) || (icon && m_label->isVisible());
         const RectF box = localRect();
-        m_icon->setGeometry({(box.width - 16) / 2, stacked ? 2 : (box.height - 16) / 2, 16, 16});
-        m_label->setGeometry({1, stacked ? 18.0 : 0.0, std::max(0.0, box.width - 2), stacked ? box.height - 18 : box.height});
+        double x = (box.width - (m_icons.empty() ? 0.0 : (m_icons.size() - 1) * 22.0 + 18) - (m_chevron ? 9 : 0)) / 2;
+        for (auto* glyph : m_icons) {
+            glyph->setVisible(icon);
+            glyph->setGeometry({x, stacked ? 4 : (box.height - 18) / 2, 18, 18});
+            x += 22;
+        }
+        if (m_chevron) {
+            m_chevron->setVisible(icon);
+            m_chevron->setGeometry({x - 2, stacked ? 9 : (box.height - 8) / 2, 8, 8});
+        }
+        m_label->setGeometry({1, stacked ? 25.0 : 0.0, std::max(0.0, box.width - 2), stacked ? box.height - 25 : box.height});
     }
 
     void paint(Painter& painter) override
@@ -54,11 +81,20 @@ protected:
         if (spacer() && !m_owner.m_editing)
             return;
         RectF bounds = localRect();
-        if (m_owner.display() == Display::IconsAndText && !m_palette)
-            bounds.height = std::min(21.0, bounds.height);
-        window_controls::paintGroupPlate(painter, bounds, Theme::current().darkMode);
-        if (m_hover || m_pressed)
-            painter.drawSmoothRectangle(bounds, bounds.height / 2, Theme::current().text.withAlpha(m_pressed ? 0.13 : 0.06));
+        const auto& theme = Theme::current();
+        if (spacer() || m_id == DefaultSet) {
+            if (m_palette && spacer())
+                bounds = {(bounds.width - 24) / 2, 1, 24, 22};
+            painter.drawRoundedRect(bounds.adjusted(1, 1, -1, -1), {3}, theme.text.withAlpha(m_hover ? 0.06 : 0),
+                                    1, theme.text.withAlpha(0.23));
+            return;
+        }
+        if (m_palette || m_owner.display() == Display::IconsAndText) {
+            const double width = std::min(bounds.width, std::max(m_chevron ? 36.0 : 30.0, m_icons.size() * 22.0 + 5));
+            bounds = {(bounds.width - width) / 2, 0, width, std::min(26.0, bounds.height)};
+        }
+        if (!m_palette || m_hover || m_pressed)
+            toolbar_surface::capsule(painter, bounds, theme.darkMode, m_pressed ? 0.13 : m_hover ? 0.065 : 0);
     }
 
     void pointerEnter() override { m_hover = true; requestPaint(); }
@@ -111,7 +147,8 @@ private:
     bool m_hover = false;
     bool m_pressed = false;
     PointF m_start;
-    Icon* m_icon;
+    std::vector<Icon*> m_icons;
+    Icon* m_chevron = nullptr;
     Label* m_label;
 };
 
@@ -198,7 +235,7 @@ SizeF Toolbar::sizeHint() const
             width += id == Space ? 17 : 8;
         }
     }
-    return {width, m_display == Display::IconsAndText ? 36.0 : 30.0};
+    return {width, m_display == Display::IconsAndText ? 38.0 : 30.0};
 }
 
 void Toolbar::layout()

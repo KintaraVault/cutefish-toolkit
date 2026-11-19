@@ -32,6 +32,7 @@ public:
     // Keep the text as the button's name; show a symbolic icon instead, or
     // show both. Existing text-only controls are unaffected.
     void setGlyphs(const std::vector<std::string>& glyphs, bool showLabels = false);
+    void setToolbarAppearance(bool enabled) { m_toolbarAppearance = enabled; requestPaint(); }
     size_t count() const { return m_segments.size(); }
     int currentIndex() const { return m_current; }
     // Does not call onCurrentChanged.
@@ -64,6 +65,10 @@ protected:
     void pointerRelease(const PointerEvent& event) override;
 
 private:
+    bool m_toolbarAppearance = false;
+    int m_toolbarHovered = -1;
+    void pointerMove(const PointerEvent& event) override;
+    void pointerLeave() override;
     class Segment;
 
     RectF itemRect(size_t index) const;

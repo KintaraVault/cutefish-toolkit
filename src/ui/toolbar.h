@@ -22,6 +22,8 @@ public:
         std::string glyph;
         double width = 30;
         std::function<View*(Toolbar&)> create;
+        std::vector<std::string> previewGlyphs;
+        bool dropdown = false;
     };
     static constexpr const char* Space = "space";
     static constexpr const char* FlexibleSpace = "flexible-space";
