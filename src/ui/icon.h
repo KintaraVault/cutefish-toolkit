@@ -39,8 +39,11 @@ public:
 
 protected:
     void paint(Painter& painter) override;
+    // For a glyph on a pixel-snapped background drawn in the same bounds.
+    void paintInSnappedBounds(Painter& painter);
 
 private:
+    void paintGlyph(Painter& painter, bool snapToBounds);
     std::string m_name;
     std::optional<ColorRecipe> m_color;
     double m_size;

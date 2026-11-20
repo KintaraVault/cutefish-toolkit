@@ -64,11 +64,35 @@ void Icon::setInkCentered(bool centered)
 
 void Icon::paint(Painter& painter)
 {
+    paintGlyph(painter, false);
+}
+
+void Icon::paintInSnappedBounds(Painter& painter)
+{
+    paintGlyph(painter, true);
+}
+
+void Icon::paintGlyph(Painter& painter, bool snapToBounds)
+{
     if (m_name.empty())
         return;
     const Theme& theme = Theme::current();
     const Color color = isEnabled() ? (m_color ? m_color->resolve() : theme.text) : theme.disabledText;
-    const Rect rect = iconRect(painter, localRect(), m_size);
+    Rect rect = iconRect(painter, localRect(), m_size);
+    if (snapToBounds) {
+        const Rect plate = painter.snappedRect(localRect());
+        // Match the parity of the tile, so there is no half-pixel tie
+        // that would put one more pixel on the left or on the top.
+        int side = std::min({rect.width, plate.width, plate.height});
+        if ((side ^ plate.width) & 1) {
+            const double wanted = m_size * painter.scale();
+            if (side == 1 || (wanted >= side && side < std::min(plate.width, plate.height)))
+                ++side;
+            else
+                --side;
+        }
+        rect = {plate.x + (plate.width - side) / 2, plate.y + (plate.height - side) / 2, side, side};
+    }
     auto& loader = IconLoader::instance();
     const auto image = m_inkCentered ? loader.centeredGlyph(m_name, rect.width, color, painter.scale())
                                      : loader.glyph(m_name, rect.width, color, painter.scale());
