@@ -44,21 +44,27 @@ TEST(WindowTest, WallpaperTintOnlyChangesTheWindowsMaterialColors)
         window->resize({80, 40});
         window->setContentView(std::make_unique<Swatches>());
     }
-    const auto tint = WallpaperTint::fromSample(80, 115, 230);
-    tinted.setWallpaperTint(tint);
+    const auto warm = WallpaperTint::fromSample(217, 63, 47);
+    const auto cool = WallpaperTint::fromSample(39, 91, 218);
     for (const Theme theme : {Theme::light(), Theme::dark()}) {
         Theme::setCurrent(theme);
-        const uint32_t tone = tint.forMode(theme.darkMode);
-        const Image image = tinted.grab();
-        EXPECT_EQ(image.pixel(70, 10), WallpaperTint::apply(theme.background, tone));
-        EXPECT_EQ(image.pixel(10, 10), theme.background);
-        EXPECT_EQ(image.pixel(30, 10), theme.highlight);
-        EXPECT_EQ(image.pixel(50, 10), WallpaperTint::apply(theme.secondBackground, tone));
+        EXPECT_EQ(tinted.grab().pixel(70, 10), theme.background);
+        for (const auto tint : {warm, cool}) {
+            tinted.setWallpaperTint(tint);
+            const uint32_t tone = tint.forMode(theme.darkMode);
+            const Image image = tinted.grab();
+            EXPECT_EQ(image.pixel(70, 10), WallpaperTint::apply(theme.background, tone));
+            EXPECT_EQ(image.pixel(10, 10), theme.background);
+            EXPECT_EQ(image.pixel(30, 10), theme.highlight);
+            EXPECT_EQ(image.pixel(50, 10), WallpaperTint::apply(theme.secondBackground, tone));
+        }
+        EXPECT_NE(WallpaperTint::apply(theme.background, warm.forMode(theme.darkMode)),
+                  WallpaperTint::apply(theme.background, cool.forMode(theme.darkMode)));
         EXPECT_EQ(other.grab().pixel(70, 10), theme.background);
         EXPECT_EQ(Theme::current().background, theme.background);
+        tinted.setWallpaperTint({});
+        EXPECT_EQ(tinted.grab().pixel(70, 10), theme.background);
     }
-    tinted.setWallpaperTint({});
-    EXPECT_EQ(tinted.grab().pixel(70, 10), Theme::current().background);
     Theme::setCurrent(original);
 }
 
