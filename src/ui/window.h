@@ -195,6 +195,9 @@ public:
     // A colour with alpha makes the window translucent. Unset is the theme's
     // background; a recipe naming theme colours follows the theme.
     void setBackgroundColor(std::optional<ColorRecipe> color);
+    // Give a dialog its own continuous outline and optionally frost its
+    // background. The configured background remains the opaque fallback.
+    void setDialogAppearance(bool frosted = false);
     // Compositor-provided material adjustment, not a tint over rendered pixels.
     void setWallpaperTint(WallpaperTint tint);
     // A tool tip over a rect of the view, in its coordinates, until unpinned,

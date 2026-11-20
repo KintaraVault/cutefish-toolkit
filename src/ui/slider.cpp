@@ -13,7 +13,7 @@
 
 namespace cutefish::ui {
 
-static constexpr double kTrack = 6;
+static constexpr double kTrack = 4;
 static constexpr double kHandle = kTrack + 2 * Slider::trackInset();
 static constexpr double kHandleHeight = 16;
 static constexpr double kShadowSigma = 2.5;
@@ -162,6 +162,9 @@ void Slider::paint(Painter& painter)
     painter.restore();
 
     painter.save();
+    if (isEnabled() && hasVisibleFocus())
+        painter.drawRoundedRect(handle.adjusted(-2, -2, 2, 2), {kHandleHeight / 2 + 2},
+                                Color{0, 0, 0, 0}, 2, color(ColorId::TextFieldFocusRing));
     if (!isEnabled())
         painter.multiplyOpacity(0.55);
     if (isEnabled())

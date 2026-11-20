@@ -51,7 +51,8 @@ public:
         BubbleShape shape;
         shape.width = size.width;
         shape.height = size.height;
-        shape.radius = Theme::current().windowRadius;
+        shape.radius = m_bubble ? design::popoverRadius : design::menuRadius;
+        shape.continuousCorners = Theme::current().continuousCorners;
         shape.arrowEdge = m_bubble ? BubbleShape::Edge::Top : BubbleShape::Edge::None;
         shape.arrowPosition = m_arrowX;
         shape.arrowWidth = 20;
@@ -82,7 +83,8 @@ protected:
             painter.fillPath(path, theme.secondBackground);
             painter.strokePath(path, theme.text.withAlpha(0.18), 1 / painter.scale());
         } else {
-            painter.fillRoundedRect(localRect(), theme.windowRadius, theme.secondBackground);
+            painter.drawRoundedRect(localRect(), {design::menuRadius, 0, themeCorners()}, theme.secondBackground,
+                                    1 / painter.scale(), theme.text.withAlpha(.14));
         }
     }
 
@@ -142,7 +144,7 @@ void DropDownPopup::applySize(SizeF size)
         m_window->setBackgroundBlur(shape.bodyRect(), shape.radius);
         m_window->setBackgroundBlurShape(shape.path());
     } else {
-        m_window->setBackgroundBlur({0, 0, size.width, size.height}, Theme::current().windowRadius);
+        m_window->setBackgroundBlur({0, 0, size.width, size.height}, design::menuRadius);
     }
 }
 

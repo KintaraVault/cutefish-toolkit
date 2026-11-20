@@ -295,9 +295,10 @@ void SegmentedControl::paint(Painter& painter)
         return;
     }
     const Color plate = color(ColorId::SegmentedControlPlate);
-    const double tabRadius = theme.smallRadius + 2;
+    const double tabRadius = design::menuItemRadius;
+    const double segmentedRadius = bounds.height >= 28 ? bounds.height / 2 : bounds.height / 4;
     if (m_style == Style::Segmented) {
-        painter.drawRoundedRect(bounds, {bounds.height / 2},
+        painter.drawRoundedRect(bounds, {segmentedRadius},
                                 m_trackColor ? m_trackColor->resolve() : color(ColorId::SegmentedControlTrack));
     } else {
         painter.drawRoundedRect(bounds, {tabRadius, 0, themeCorners()}, color(ColorId::SegmentedTabBackground));
@@ -309,9 +310,11 @@ void SegmentedControl::paint(Painter& painter)
     if (m_style == Style::Segmented) {
         // A plain rectangle with a drop shadow: Gaussian deviation (radius + 1) / 3.33.
         const RectF highlight = item.adjusted(kPlateInset, kPlateInset, -kPlateInset, -kPlateInset);
-        painter.drawShadow(highlight, highlight.height / 2, 1.2, color(ColorId::SegmentedControlPlateShadow),
+        const double radius = std::max(0.0, segmentedRadius - kPlateInset);
+        painter.drawShadow(highlight, radius, 1.2, color(ColorId::SegmentedControlPlateShadow),
                            {0, 1});
-        painter.drawSmoothRectangle(highlight, highlight.height / 2, plate);
+        painter.drawRoundedRect(highlight, {radius}, plate, 1 / painter.scale(),
+                                theme.text.withAlpha(theme.darkMode ? .12 : .07));
     } else {
         // Concentric with the bar through the inset.
         const Color shadow = color(ColorId::SegmentedTabPlateShadow);

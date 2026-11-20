@@ -10,6 +10,7 @@
 #include "base/event_loop.h"
 #include "ui/application.h"
 #include "ui/header_button.h"
+#include "ui/icon.h"
 #include "ui/keys.h"
 #include "ui/label.h"
 #include "ui/painter.h"
@@ -31,7 +32,7 @@ static constexpr double kControlsHeaderHeight = window_controls::kDialogHeaderHe
 static constexpr double kControlsTitleSize = 12;
 static constexpr double kControlsEnd = window_controls::kDialogCloseInset + window_controls::kButton;
 static constexpr double kControlsCentre = window_controls::kDialogCloseInset + window_controls::kButton / 2;
-static constexpr double kContentPadding = 16;
+static constexpr double kContentPadding = design::dialogInset;
 static constexpr double kTitleSize = 14;
 static constexpr double kButtonTextSize = 13;
 // The alert's metrics. Its labels' lines start at their tops and leave two
@@ -44,9 +45,11 @@ static constexpr double kAlertLineHeight = 16;
 static constexpr double kAlertLabelSlack = 2;
 static constexpr double kAlertTextGap = 9;
 static constexpr double kAlertButtonsGap = 14;
-static constexpr double kAlertButtonHeight = 28;
+static constexpr double kAlertButtonHeight = design::compactControlHeight;
 static constexpr double kAlertButtonSpacing = 8;
 static constexpr double kAlertButtonPadding = 12;
+static constexpr double kAlertIconSize = 48;
+static constexpr double kAlertIconGap = 12;
 static constexpr int kBold = 700;
 // The keyboard focus ring outside a dialog button.
 static constexpr double kFocusRing = 3;
@@ -67,6 +70,8 @@ DialogButton::DialogButton(std::string text, bool primary)
     m_label->setTextAlignment(Label::TextAlignment::Center);
     m_label->setVerticallyCentered(true);
     m_label->setFontSize(kButtonTextSize);
+    m_label->setElide(Label::Elide::Right);
+    setTracksHover(true);
     updateTextColor();
 }
 
@@ -107,7 +112,7 @@ RectF DialogButton::visualRect() const
 SizeF DialogButton::sizeHint() const
 {
     const SizeF text = m_label->sizeHint();
-    return {std::max(64.0, text.width + 2 * Theme::current().largeSpacing), std::max(32.0, text.height)};
+    return {std::max(64.0, text.width + 2 * Theme::current().largeSpacing), std::max(kAlertButtonHeight, text.height)};
 }
 
 double DialogButton::textWidth() const
@@ -142,12 +147,13 @@ void DialogButton::paint(Painter& painter)
             painter.drawRoundedRect(bounds, {radius}, veil);
         }
     } else if (m_primary) {
-        const Color accent = color(ColorId::Highlight);
+        const Color accent = color(ColorId::MenuHighlight);
         painter.drawRoundedRect(bounds, {radius}, pressed ? pressedAccent(accent) : accent);
     } else {
+        const Color neutral = color(pressed ? ColorId::DialogButtonBackgroundPressed : ColorId::DialogButtonBackground);
         painter.drawRoundedRect(
-            bounds, {radius},
-            color(pressed ? ColorId::DialogButtonBackgroundPressed : ColorId::DialogButtonBackground));
+            bounds, {radius}, neutral, 1 / painter.scale(),
+            Theme::current().text.withAlpha(isEnabled() && isHovered() ? .16 : .06));
     }
     if (hasVisibleFocus()) {
         const Color ring = m_primary && !m_destructive ? color(ColorId::Highlight).withAlpha(0.3)
@@ -160,7 +166,20 @@ void DialogButton::paint(Painter& painter)
 // A dialog button fades as a whole when disabled.
 void DialogButton::enabledChanged()
 {
+    if (!isEnabled())
+        m_pressed = false;
     setOpacity(isEnabled() ? 1 : 0.5);
+}
+
+void DialogButton::hoverChanged()
+{
+    requestPaint();
+}
+
+void DialogButton::focusOut()
+{
+    m_pressed = false;
+    requestPaint();
 }
 
 void DialogButton::pointerPress(const PointerEvent& event)
@@ -177,14 +196,21 @@ void DialogButton::pointerRelease(const PointerEvent& event)
         return;
     m_pressed = false;
     requestPaint();
-    if (localRect().contains(event.position) && onClicked)
+    if (isEnabled() && localRect().contains(event.position) && onClicked)
         onClicked();
 }
 
-// Space presses it and the release clicks; Return is left to the dialog.
+// Space presses it and the release clicks; Return follows the focused button.
 bool DialogButton::keyPress(const KeyEvent& event)
 {
-    if (event.key != key::Space || event.modifiers != NoModifier)
+    if (event.modifiers != NoModifier)
+        return false;
+    if (event.key == key::Return || event.key == key::KeypadEnter) {
+        if (!event.repeat && onClicked)
+            onClicked();
+        return true;
+    }
+    if (event.key != key::Space)
         return false;
     m_pressed = true;
     requestPaint();
@@ -215,6 +241,8 @@ public:
     {
         m_header->setCloseOnly(true);
         m_title->setFontSize(kControlsTitleSize);
+        m_title->setWeight(600);
+        m_title->setElide(Label::Elide::Right);
         m_title->setTextAlignment(Label::TextAlignment::Center);
         m_title->setVerticallyCentered(true);
         m_back->setGlyph("chevron-left");
@@ -318,6 +346,7 @@ DialogWindow::DialogWindow(Window* parent, std::string title, double width)
     m_root = root.get();
     m_window->setContentView(std::move(root));
     m_window->setTransientParent(parent, true);
+    m_window->setBackgroundColor(ColorId::PanelBackground);
     m_window->onCloseRequested = [this] { close(); };
 }
 
@@ -325,29 +354,34 @@ DialogWindow::~DialogWindow() = default;
 
 void DialogWindow::setTitle(std::string title)
 {
+    if (!m_window)
+        return;
     m_root->title()->setText(title);
-    if (m_window)
-        m_window->setTitle(title);
+    m_window->setTitle(title);
 }
 
 void DialogWindow::setContentView(std::unique_ptr<View> view)
 {
-    m_root->setContent(std::move(view));
+    if (m_window)
+        m_root->setContent(std::move(view));
 }
 
 void DialogWindow::setBackVisible(bool visible)
 {
-    m_root->back()->setVisible(visible);
+    if (m_window)
+        m_root->back()->setVisible(visible);
 }
 
 void DialogWindow::setCloseVisible(bool visible)
 {
-    m_root->setControlsVisible(visible);
+    if (m_window)
+        m_root->setControlsVisible(visible);
 }
 
 void DialogWindow::setHeight(double height)
 {
-    m_root->setHeight(height);
+    if (m_window)
+        m_root->setHeight(height);
 }
 
 void DialogWindow::show()
@@ -362,13 +396,31 @@ void DialogWindow::show()
 
 void DialogWindow::close()
 {
+    if (!m_window)
+        return;
     release(m_window);
     if (onClosed)
         onClosed();
 }
 
+class AlertBadge final : public View
+{
+public:
+    bool destructive = false;
+
+protected:
+    void paint(Painter& painter) override
+    {
+        const auto tint = color(destructive ? ColorId::DestructiveAction : ColorId::Highlight);
+        painter.drawRoundedRect(localRect(), {13, 0, themeCorners()}, tint.withAlpha(.14),
+                                1 / painter.scale(), tint.withAlpha(.19));
+    }
+};
+
 AlertView::AlertView()
-    : m_title(addChild<Label>())
+    : m_badge(addChild<AlertBadge>())
+    , m_icon(m_badge->addChild<Icon>("info", 24))
+    , m_title(addChild<Label>())
     , m_text(addChild<Label>())
     , m_cancel(addChild<DialogButton>())
     , m_confirm(addChild<DialogButton>(std::string(), true))
@@ -381,7 +433,25 @@ AlertView::AlertView()
         label->setWrap(true);
     }
     m_title->setWeight(kBold);
+    m_icon->setColor(ColorId::Highlight);
+    m_badge->setVisible(false);
     m_text->setVisible(false);
+}
+
+void AlertView::setIcon(std::string glyph)
+{
+    m_badge->setVisible(!glyph.empty());
+    m_icon->setIconName(std::move(glyph));
+    requestLayout();
+}
+
+void AlertView::setDestructive(bool destructive)
+{
+    auto* badge = static_cast<AlertBadge*>(m_badge);
+    badge->destructive = destructive;
+    badge->requestPaint();
+    m_icon->setColor(destructive ? ColorId::DestructiveAction : ColorId::Highlight);
+    m_confirm->setDestructive(destructive);
 }
 
 void AlertView::setText(std::string text)
@@ -403,11 +473,11 @@ void AlertView::setTopInset(double inset)
     requestLayout();
 }
 
-bool AlertView::buttonsSideBySide() const
+bool AlertView::buttonsSideBySide(double availableWidth) const
 {
     if (!m_cancel->isVisible())
         return false;
-    const double width = (kWidth - 2 * kAlertInset - kAlertButtonSpacing) / 2;
+    const double width = (availableWidth - 2 * kAlertInset - kAlertButtonSpacing) / 2;
     return m_cancel->textWidth() + 2 * kAlertButtonPadding <= width
         && m_confirm->textWidth() + 2 * kAlertButtonPadding <= width;
 }
@@ -421,9 +491,11 @@ double AlertView::heightForWidth(double width) const
 {
     const double textWidth = width - 2 * kAlertTextInset;
     double height = m_topInset + m_title->heightForWidth(textWidth) + kAlertLabelSlack;
+    if (m_badge->isVisible())
+        height += kAlertIconSize + kAlertIconGap;
     if (m_text->isVisible())
         height += kAlertTextGap + m_text->heightForWidth(textWidth) + kAlertLabelSlack;
-    const int rows = buttonsSideBySide() || !m_cancel->isVisible() ? 1 : 2;
+    const int rows = buttonsSideBySide(width) || !m_cancel->isVisible() ? 1 : 2;
     height += kAlertButtonsGap + rows * kAlertButtonHeight + (rows - 1) * kAlertButtonSpacing + kAlertInset;
     return std::ceil(height);
 }
@@ -433,6 +505,11 @@ void AlertView::layout()
     const double width = geometry().width;
     const double textWidth = width - 2 * kAlertTextInset;
     double y = m_topInset;
+    if (m_badge->isVisible()) {
+        m_badge->setGeometry({kAlertTextInset, y, kAlertIconSize, kAlertIconSize});
+        m_icon->setGeometry({12, 12, 24, 24});
+        y += kAlertIconSize + kAlertIconGap;
+    }
     const double titleHeight = m_title->heightForWidth(textWidth);
     m_title->setGeometry({kAlertTextInset, y, textWidth, titleHeight});
     y += titleHeight + kAlertLabelSlack;
@@ -444,7 +521,7 @@ void AlertView::layout()
     }
     y += kAlertButtonsGap;
     const double full = width - 2 * kAlertInset;
-    if (buttonsSideBySide()) {
+    if (buttonsSideBySide(width)) {
         const double buttonWidth = (full - kAlertButtonSpacing) / 2;
         m_cancel->setGeometry({kAlertInset, y, buttonWidth, kAlertButtonHeight});
         m_confirm->setGeometry(
@@ -496,11 +573,18 @@ void ConfirmDialog::setButtonTexts(std::string confirm, std::string cancel)
 void ConfirmDialog::setDestructive(bool destructive)
 {
     m_destructive = destructive;
+    if (m_window) {
+        m_alert->setDestructive(destructive);
+        if (destructive && m_cancelVisible && m_window->focusView() == m_alert->confirm())
+            m_alert->cancel()->setFocus();
+    }
 }
 
-void ConfirmDialog::setCancelVisible(bool visible)
+void ConfirmDialog::setIcon(std::string glyph)
 {
-    m_cancelVisible = visible;
+    m_icon = std::move(glyph);
+    if (m_window)
+        m_alert->setIcon(m_icon);
 }
 
 void ConfirmDialog::setTitle(std::string title)
@@ -521,19 +605,19 @@ void ConfirmDialog::setText(std::string text)
 
 // The dialog's content, with the window controls over its corner when
 // there is no Cancel button to do their work.
-class ConfirmContent final : public View
+class ConfirmDialog::Root final : public View
 {
 public:
-    ConfirmContent(std::unique_ptr<View> content, bool controls)
+    Root(std::unique_ptr<View> content, bool controls)
         : m_content(content.get())
     {
         addChild(std::move(content));
-        if (controls) {
-            m_header = addChild<WindowHeader>(kControlsHeaderHeight);
-            m_header->setCloseOnly(true);
-        }
+        m_header = addChild<WindowHeader>(kControlsHeaderHeight);
+        m_header->setCloseOnly(true);
+        m_header->setVisible(controls);
     }
 
+    void setControlsVisible(bool visible) { m_header->setVisible(visible); }
     SizeF sizeHint() const override { return m_content->sizeHint(); }
     double heightForWidth(double width) const override { return m_content->heightForWidth(width); }
     bool acceptsPointer() const override { return true; }
@@ -543,7 +627,7 @@ protected:
     {
         const RectF bounds = localRect();
         m_content->setGeometry(bounds);
-        if (m_header)
+        if (m_header->isVisible())
             m_header->setGeometry({0, 0, bounds.width, kControlsHeaderHeight});
     }
 
@@ -559,11 +643,31 @@ private:
     WindowHeader* m_header = nullptr;
 };
 
+void ConfirmDialog::setCancelVisible(bool visible)
+{
+    if (visible == m_cancelVisible)
+        return;
+    m_cancelVisible = visible;
+    if (m_window) {
+        const bool cancelFocused = m_window->focusView() == m_alert->cancel();
+        m_root->setControlsVisible(!visible);
+        m_alert->setCancelVisible(visible);
+        m_alert->setTopInset(visible ? kAlertTop : kControlsHeaderHeight);
+        if (visible && m_destructive)
+            m_alert->cancel()->setFocus();
+        else if (!visible && cancelFocused)
+            m_alert->confirm()->setFocus();
+    }
+}
+
 void ConfirmDialog::show()
 {
+    if (m_window)
+        return;
     m_window = std::make_unique<Window>();
     m_window->setBackgroundColor(ColorId::AlertBackground);
     m_window->setTransientParent(m_parent, true);
+    m_window->setDialogAppearance(true);
     m_window->setTitle(m_title);
     m_window->onCloseRequested = [this] { finish(false); };
 
@@ -574,20 +678,27 @@ void ConfirmDialog::show()
         alert->setTopInset(kControlsHeaderHeight);
     alert->title()->setText(m_title);
     alert->setText(m_text);
+    alert->setIcon(m_icon);
+    alert->setDestructive(m_destructive);
     alert->setCancelVisible(m_cancelVisible);
     DialogButton* cancel = alert->cancel();
     DialogButton* confirm = alert->confirm();
     cancel->setText(m_cancel);
     cancel->onClicked = [this] { finish(false); };
     confirm->setText(m_confirm);
-    confirm->setDestructive(m_destructive);
     confirm->onClicked = [this] { finish(true); };
 
-    // Escape cancels; Return confirms even while Cancel has the focus.
+    // Escape cancels. Return from a focused button is handled by that button;
+    // it must never ignore the initial focus on Cancel for destructive actions.
     m_window->addShortcut(NoModifier, key::Escape, [this] { finish(false); });
-    m_window->addShortcut(NoModifier, key::Return, [this] { finish(true); });
-    m_window->addShortcut(NoModifier, key::KeypadEnter, [this] { finish(true); });
-    m_window->setContentView(std::make_unique<ConfirmContent>(std::move(alert), !m_cancelVisible));
+    for (const auto key : {key::Return, key::KeypadEnter})
+        m_window->addShortcut(NoModifier, key, [this] {
+            if (!m_destructive)
+                finish(true);
+        });
+    auto root = std::make_unique<Root>(std::move(alert), !m_cancelVisible);
+    m_root = root.get();
+    m_window->setContentView(std::move(root));
     m_window->resize({AlertView::kWidth, 0});
     m_window->setFitsContentHeight(true);
     // A destructive action waits for a deliberate choice.
@@ -597,6 +708,10 @@ void ConfirmDialog::show()
 
 void ConfirmDialog::finish(bool accepted)
 {
+    if (!m_window)
+        return;
+    m_alert = nullptr;
+    m_root = nullptr;
     release(m_window);
     if (accepted && onAccepted)
         onAccepted();

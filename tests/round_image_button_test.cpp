@@ -176,8 +176,10 @@ TEST(RoundImageButtonTest, DisabledGlyphFades)
         }
         return value;
     };
-    EXPECT_LT(darkest(), 40);
+    const int enabled = darkest();
+    ASSERT_LT(enabled, 175);
     f.button->setEnabled(false);
     const int faded = darkest();
-    EXPECT_NEAR(faded, 255 * 0.65, 25);
+    // A thin antialiased glyph need not cover any pixel completely.
+    EXPECT_NEAR(faded, 255 - (255 - enabled) * 0.35, 3);
 }

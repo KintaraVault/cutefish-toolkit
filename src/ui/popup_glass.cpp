@@ -10,28 +10,33 @@ namespace cutefish::ui {
 GlassMaterial popupGlass(bool darkMode)
 {
     GlassMaterial glass;
-    glass.blurSigma = 6;
-    glass.displacement = 20;
-    glass.chroma = 0.03;
-    glass.saturation = 1.2;
-    // A white frost; the blur, not the tint, is what keeps text readable.
+    glass.blurSigma = 10;
+    glass.displacement = 10;
+    glass.chroma = 0;
+    glass.saturation = darkMode ? 1.2 : 1.4;
+    // A thicker frost keeps symbols readable over bright or patterned content.
     if (darkMode) {
-        glass.tintRed = 0.17;
-        glass.tintGreen = 0.17;
-        glass.tintBlue = 0.19;
+        glass.tintRed = 0.14;
+        glass.tintGreen = 0.14;
+        glass.tintBlue = 0.15;
     } else {
         glass.tintRed = 1;
         glass.tintGreen = 1;
         glass.tintBlue = 1;
     }
-    glass.tintAlpha = 0.6;
+    glass.tintAlpha = darkMode ? design::menuTintDark : design::menuTintLight;
     return glass;
 }
 
 bool PopupGlass::update(Window& window)
 {
-    if (!window.backgroundGlassAvailable())
+    if (!window.backgroundGlassAvailable() || Theme::appearanceStyle().reduceTransparency) {
+        if (m_darkMode) {
+            m_darkMode.reset();
+            window.setBackgroundGlass(std::nullopt);
+        }
         return false;
+    }
     const bool darkMode = Theme::current().darkMode;
     if (m_darkMode != darkMode) {
         m_darkMode = darkMode;
@@ -43,7 +48,7 @@ bool PopupGlass::update(Window& window)
 void PopupGlass::prepare(Window& window)
 {
     window.setBackgroundColor(Color::rgb(0x000000).withAlpha(0));
-    window.setTranslucentSubpixelText(!window.backgroundGlassAvailable());
+    window.setTranslucentSubpixelText(!window.backgroundGlassAvailable() || Theme::appearanceStyle().reduceTransparency);
 }
 
 } // namespace cutefish::ui

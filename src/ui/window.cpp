@@ -24,6 +24,7 @@
 #include "ui/color_provider.h"
 #include "ui/color_provider_scope.h"
 #include "ui/bitmap.h"
+#include "ui/bubble_shape.h"
 #include "ui/drag.h"
 #include "ui/embedded_platform_window.h"
 #include "ui/embedded_window.h"
@@ -33,6 +34,7 @@
 #include "ui/layer.h"
 #include "ui/painter.h"
 #include "ui/platform_window.h"
+#include "ui/popup_glass.h"
 #include "ui/text_context.h"
 #include "ui/text_lines.h"
 #include "ui/theme.h"
@@ -62,7 +64,9 @@ static constexpr uint64_t kDoubleClickNs = 400000000;
 static constexpr auto kToolTipDelay = std::chrono::milliseconds(700);
 // The tool tip: six pixels of padding, a small spacing and a half above
 // what it explains.
-static constexpr double kToolTipPadding = 6;
+static constexpr double kToolTipPaddingX = 6;
+static constexpr double kToolTipPaddingY = 3;
+static constexpr double kToolTipRadius = 4;
 static constexpr double kToolTipGap = 9;
 static constexpr double kToolTipMargin = 6;
 static constexpr double kToolTipShadowSigma = 2.75;
@@ -75,12 +79,13 @@ public:
     explicit ToolTipView(std::string text)
         : m_label(addChild<Label>(std::move(text)))
     {
+        m_label->setFontSize(std::max(10.0, Theme::current().fontSize() - 1));
     }
 
     SizeF sizeHint() const override
     {
         const SizeF text = m_label->sizeHint();
-        return {text.width + 2 * kToolTipPadding, text.height + 2 * kToolTipPadding};
+        return {text.width + 2 * kToolTipPaddingX, text.height + 2 * kToolTipPaddingY};
     }
 
     RectF visualRect() const override
@@ -102,10 +107,9 @@ protected:
 
     void paint(Painter& painter) override
     {
-        const Theme& theme = Theme::current();
-        painter.drawShadow(localRect(), theme.smallRadius, kToolTipShadowSigma, color(ColorId::ToolTipShadow));
-        painter.fillRoundedRect(localRect(), theme.smallRadius, color(ColorId::ToolTipBackground),
-                                themeCorners());
+        painter.drawShadow(localRect(), kToolTipRadius, kToolTipShadowSigma, color(ColorId::ToolTipShadow));
+        painter.drawRoundedRect(localRect(), {kToolTipRadius}, color(ColorId::ToolTipBackground),
+                                1 / painter.scale(), color(ColorId::Separator));
     }
 
 private:
@@ -388,6 +392,8 @@ void Window::setTransientParent(Window* parent, bool modal)
     m_transientParent = parent;
     m_modal = parent && modal;
     m_platform->setTransientParent(parent ? parent->m_platform.get() : nullptr, modal);
+    if (modal && !m_frameDamage->dialog)
+        setDialogAppearance();
     updateMainMenu();
     m_active = familyActivated(this);
     // Opened over the parent, it most likely shows at the parent's scale.
@@ -436,6 +442,16 @@ void Window::setBackgroundColor(std::optional<ColorRecipe> color)
 {
     m_backgroundColor = std::move(color);
     requestPaint();
+}
+
+void Window::setDialogAppearance(bool frosted)
+{
+    auto& frame = *m_frameDamage;
+    frame.dialog = true;
+    frame.dialogFrosted = frosted;
+    setSkipTaskbar(true);
+    requestLayout();
+    damageAll();
 }
 
 void Window::setWallpaperTint(WallpaperTint tint)
@@ -547,6 +563,8 @@ bool Window::backgroundGlassAvailable() const
 void Window::setTransientForForeign(const std::string& handle, bool modal)
 {
     m_platform->setForeignParent(handle, modal);
+    if (modal && !m_frameDamage->dialog)
+        setDialogAppearance();
 }
 
 bool Window::setDesktopRole(const std::string& outputName)
@@ -1352,6 +1370,8 @@ bool Window::startDrag(DragSource source)
 
 void Window::handleKey(const KeyEvent& event, bool pressed)
 {
+    if (blockedByModal())
+        return;
     if (!m_grabbingPopups.empty()) {
         m_grabbingPopups.back()->handleKey(event, pressed);
         return;
@@ -1384,7 +1404,9 @@ void Window::handleKey(const KeyEvent& event, bool pressed)
         return;
     }
 
-    runShortcut(event);
+    if (!runShortcut(event) && m_frameDamage->dialog && onCloseRequested && event.key == key::Escape
+        && event.modifiers == NoModifier && !event.repeat)
+        handleCloseRequested();
 }
 
 bool Window::runShortcut(const KeyEvent& event)
@@ -1787,14 +1809,15 @@ bool Window::renderFrame(uint64_t frameTimeNs, bool prepared)
     const Color background = backgroundColor();
     // A frame that changes nothing, such as one an animation without visible
     // progress ticks, keeps the frame callbacks coming without drawing.
-    if (!hasPendingDamage() && m_platform->presentUnchanged(m_size, m_scale, background.a == 255)) {
+    const bool opaque = !m_frameDamage->dialog && background.a == 255;
+    if (!hasPendingDamage() && m_platform->presentUnchanged(m_size, m_scale, opaque)) {
         m_rendering = false;
         m_framePending = true;
         m_framePendingUnchanged = true;
         return true;
     }
     const bool presented = m_platform->present(
-        m_size, m_scale, background.a == 255,
+        m_size, m_scale, opaque,
         [this](SkCanvas* canvas, int bufferAge) { return paintFrame(canvas, bufferAge); });
     m_rendering = false;
     if (!presented)
@@ -1911,6 +1934,41 @@ bool Window::layoutIfNeeded()
     }
     // Geometry set by the pass itself asks for layout again.
     m_layoutNeeded = false;
+    auto& frame = *m_frameDamage;
+    if (frame.dialog && m_shown && m_size.width > 0 && m_size.height > 0) {
+        const auto& theme = Theme::current();
+        const bool glass = frame.dialogFrosted && !Theme::appearanceStyle().reduceTransparency
+            && backgroundGlassAvailable();
+        const bool shapeChanged = !(frame.dialogSize == m_size)
+            || frame.dialogContinuousCorners != theme.continuousCorners;
+        if (shapeChanged || frame.dialogGlassActive != glass) {
+            frame.dialogSize = m_size;
+            frame.dialogContinuousCorners = theme.continuousCorners;
+            RectF bounds {0, 0, m_size.width, m_size.height};
+            const BubbleShape shape {.width = bounds.width, .height = bounds.height,
+                                     .radius = design::dialogRadius, .continuousCorners = theme.continuousCorners};
+            const auto path = shape.path();
+            setBodyShape(path);
+            if (glass) {
+                setBackgroundBlur(bounds, design::dialogRadius);
+                setBackgroundBlurShape(path);
+            } else if (frame.dialogGlassActive) {
+                setBackgroundBlur({}, 0);
+                setBackgroundBlurShape({});
+                setBackgroundGlass(std::nullopt);
+                frame.dialogGlassDark.reset();
+            }
+            frame.dialogGlassActive = glass;
+        }
+        if (glass && frame.dialogGlassDark != theme.darkMode) {
+            frame.dialogGlassDark = theme.darkMode;
+            GlassMaterial material = popupGlass(theme.darkMode);
+            material.blurSigma = 12;
+            material.displacement = 5;
+            material.tintAlpha = theme.darkMode ? .89 : .85;
+            setBackgroundGlass(material);
+        }
+    }
     if (s_verifiesLayout)
         verifyLayout();
     return true;

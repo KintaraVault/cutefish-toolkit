@@ -15,7 +15,7 @@
 namespace cutefish::ui {
 
 static constexpr double kMinimumWidth = 64;
-static constexpr double kMinimumHeight = 32;
+static constexpr double kMinimumHeight = design::compactControlHeight;
 
 Button::Button(std::string text)
     : m_label(addChild<Label>(std::move(text)))
@@ -64,9 +64,9 @@ void Button::paint(Painter& painter)
         background = ColorId::ButtonBackgroundPressed;
     else if (enabled && m_hovered)
         background = ColorId::ButtonBackgroundHovered;
-    painter.drawRoundedRect(localRect(), {theme.mediumRadius, 0, themeCorners()}, color(background),
+    painter.drawRoundedRect(localRect(), {localRect().height / 2}, color(background),
                             1 / painter.scale(),
-                            hasVisibleFocus() ? color(ColorId::ButtonFocusRing) : Color{0, 0, 0, 0});
+                            hasVisibleFocus() ? color(ColorId::ButtonFocusRing) : theme.text.withAlpha(.07));
 }
 
 void Button::pointerEnter()

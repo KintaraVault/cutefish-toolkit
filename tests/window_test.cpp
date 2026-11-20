@@ -406,30 +406,77 @@ TEST(WindowTest, ConfirmDialogAnswersOnce)
     EXPECT_EQ(accepted, 0);
 }
 
-// A confirmation: Return confirms even while a destructive dialog's Cancel has
-// the focus; Space presses the focused button.
-TEST(WindowTest, ConfirmDialogReturnConfirms)
+TEST(WindowTest, DestructiveDialogOnlyConfirmsFromTheConfirmButton)
 {
     Window parent;
     parent.resize({400, 300});
     parent.setContentView(std::make_unique<View>());
     parent.show();
 
-    for (const bool space : {false, true}) {
-        ConfirmDialog dialog(&parent, "Remove the file?", "It cannot be brought back.");
-        dialog.setDestructive(true);
-        int accepted = 0;
-        int rejected = 0;
-        dialog.onAccepted = [&accepted] { ++accepted; };
-        dialog.onRejected = [&rejected] { ++rejected; };
-        dialog.show();
-        Window* window = dialog.window();
-        window->grab();
-        TestInput::setKeyboardFocus(*window, true);
-        TestInput::typeKey(*window, space ? key::Space : key::Return);
-        EXPECT_EQ(accepted, space ? 0 : 1);
-        EXPECT_EQ(rejected, space ? 1 : 0);
+    for (const auto key : {key::Return, key::KeypadEnter, key::Space}) {
+        for (const bool selectConfirm : {false, true}) {
+            ConfirmDialog dialog(&parent, "Remove the file?", "It cannot be brought back.");
+            dialog.setDestructive(true);
+            int accepted = 0;
+            int rejected = 0;
+            dialog.onAccepted = [&accepted] { ++accepted; };
+            dialog.onRejected = [&rejected] { ++rejected; };
+            dialog.show();
+            Window* window = dialog.window();
+            window->grab();
+            TestInput::setKeyboardFocus(*window, true);
+            if (selectConfirm)
+                TestInput::typeKey(*window, key::Tab);
+            TestInput::typeKey(*window, key);
+            EXPECT_EQ(accepted, selectConfirm ? 1 : 0);
+            EXPECT_EQ(rejected, selectConfirm ? 0 : 1);
+        }
     }
+}
+
+TEST(WindowTest, ModalDialogBlocksParentKeysUntilDismissed)
+{
+    Window parent;
+    parent.resize({400, 300});
+    parent.setContentView(std::make_unique<View>());
+    parent.show();
+    int parentCalls = 0;
+    parent.addShortcut(NoModifier, key::Return, [&] { ++parentCalls; });
+    DialogWindow dialog(&parent, "Details");
+    dialog.show();
+    TestInput::typeKey(parent, key::Return);
+    EXPECT_EQ(parentCalls, 0);
+    TestInput::typeKey(*dialog.window(), key::Escape);
+    EXPECT_EQ(dialog.window(), nullptr);
+    Application::instance()->loop().dispatch();
+    TestInput::typeKey(parent, key::Return);
+    EXPECT_EQ(parentCalls, 1);
+}
+
+TEST(WindowTest, DialogGlassUsesAShapedOpaqueFallback)
+{
+    const Theme original = Theme::current();
+    const AppearanceStyle originalStyle = Theme::appearanceStyle();
+    TestInput::setGlassAvailable(true);
+    Theme::setCurrent(Theme::light());
+    ConfirmDialog dialog(nullptr, "Title", "Some details");
+    dialog.show();
+    Window* window = dialog.window();
+    const Image glassImage = window->grab();
+    EXPECT_EQ(glassImage.pixel(0, 0).a, 0);
+    EXPECT_EQ(glassImage.pixel(230, 25).a, 0);
+    EXPECT_TRUE(TestInput::backgroundGlass(*window));
+
+    Theme::setCurrent(Theme::dark(), {.reduceTransparency = true});
+    for (double scale : {1., 1.5}) {
+        window->setScale(scale);
+        const Image solid = window->grab();
+        EXPECT_EQ(solid.pixel(0, 0).a, 0);
+        EXPECT_EQ(solid.pixel(int(230 * scale), int(25 * scale)).a, 255);
+        EXPECT_FALSE(TestInput::backgroundGlass(*window));
+    }
+    TestInput::setGlassAvailable(false);
+    Theme::setCurrent(original, originalStyle);
 }
 
 TEST(WindowTest, ConfirmDialogTextChangesWhileShown)
@@ -500,8 +547,8 @@ TEST(WindowTest, DialogTakesTheHeightOfItsContent)
     dialog.setContentView(std::move(column));
     dialog.show();
     // A 42-pixel title bar with the close control, the content under it,
-    // 16 below it.
-    EXPECT_EQ(dialog.window()->size().height, 42 + 100 + 16);
+    // 20 below it.
+    EXPECT_EQ(dialog.window()->size().height, 42 + 100 + 20);
     EXPECT_EQ(dialog.window()->size().width, 320);
 }
 
@@ -518,7 +565,7 @@ TEST(WindowTest, DialogWithoutControlsKeepsTheTallerHeader)
     column->addChild<View>()->setLayoutHints({.preferredHeight = 100});
     dialog.setContentView(std::move(column));
     dialog.show();
-    EXPECT_EQ(dialog.window()->size().height, 44 + 100 + 16);
+    EXPECT_EQ(dialog.window()->size().height, 44 + 100 + 20);
 }
 
 TEST(WindowTest, DialogOfAFixedHeightGivesTheRestToItsContent)
@@ -538,13 +585,13 @@ TEST(WindowTest, DialogOfAFixedHeightGivesTheRestToItsContent)
     dialog.window()->grab();
     EXPECT_EQ(dialog.window()->size().height, 400);
     EXPECT_EQ(content->geometry().y, 42);
-    EXPECT_EQ(content->geometry().height, 400 - 42 - 16);
+    EXPECT_EQ(content->geometry().height, 400 - 42 - 20);
 
     dialog.setCloseVisible(false);
     dialog.window()->grab();
     EXPECT_EQ(dialog.window()->size().height, 400);
     EXPECT_EQ(content->geometry().y, 44);
-    EXPECT_EQ(content->geometry().height, 400 - 44 - 16);
+    EXPECT_EQ(content->geometry().height, 400 - 44 - 20);
 }
 
 TEST(WindowTest, ThemeChangesReachLabels)
@@ -631,8 +678,8 @@ TEST(WindowTest, DialogFitsTextLinesAtFractionalScale)
     Window* window = dialog.window();
     window->grab();
     const double bottom = content->geometry().y + content->children().back()->geometry().bottom();
-    EXPECT_GE(window->size().height - bottom, 16);
-    EXPECT_LT(window->size().height - bottom, 17);
+    EXPECT_GE(window->size().height - bottom, 20);
+    EXPECT_LT(window->size().height - bottom, 21);
 }
 
 // A tool tip is a whole number of pixels wide; its text keeps one gap to both

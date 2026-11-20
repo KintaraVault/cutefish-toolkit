@@ -113,7 +113,7 @@ TEST(MenuTest, RowsHaveThemeMetrics)
     popup->grab();
     // Three rows of 26 and one separator of 12, five pixels above and
     // below.
-    EXPECT_EQ(popup->size().height, 3 * 26 + 12 + 2 * 5);
+    EXPECT_EQ(popup->size().height, 3 * 24 + 11 + 2 * 5);
     EXPECT_GE(popup->size().width, 158 + 2 * 5);
 }
 
@@ -333,13 +333,13 @@ TEST(MenuTest, PopupGlassFollowsTheTheme)
         const std::optional<GlassMaterial> glass = TestInput::backgroundGlass(*popup);
         ASSERT_TRUE(glass);
         EXPECT_EQ(*glass, popupGlass(false));
-        EXPECT_EQ(glass->blurSigma, 6);
-        EXPECT_EQ(glass->displacement, 20);
-        EXPECT_EQ(glass->chroma, 0.03);
-        EXPECT_EQ(glass->saturation, 1.2);
+        EXPECT_EQ(glass->blurSigma, 10);
+        EXPECT_EQ(glass->displacement, 10);
+        EXPECT_EQ(glass->chroma, 0);
+        EXPECT_EQ(glass->saturation, 1.4);
         EXPECT_EQ(glass->rim, 0);
         EXPECT_EQ(glass->tintRed, 1);
-        EXPECT_EQ(glass->tintAlpha, 0.6);
+        EXPECT_EQ(glass->tintAlpha, 0.73);
         // The rest is the compositor's.
         EXPECT_EQ(glass->bevel, GlassMaterial().bevel);
         EXPECT_EQ(glass->ior, GlassMaterial().ior);
@@ -349,9 +349,10 @@ TEST(MenuTest, PopupGlassFollowsTheTheme)
         const std::optional<GlassMaterial> dark = TestInput::backgroundGlass(*popup);
         ASSERT_TRUE(dark);
         EXPECT_EQ(*dark, popupGlass(true));
-        EXPECT_EQ(dark->tintRed, 0.17);
-        EXPECT_EQ(dark->tintBlue, 0.19);
-        EXPECT_EQ(dark->tintAlpha, 0.6);
+        EXPECT_EQ(dark->tintRed, 0.14);
+        EXPECT_EQ(dark->tintBlue, 0.15);
+        EXPECT_EQ(dark->tintAlpha, 0.78);
+        EXPECT_EQ(dark->saturation, 1.2);
     }
     Theme::setCurrent(original);
     TestInput::setGlassAvailable(false);

@@ -21,9 +21,8 @@
 
 namespace cutefish::ui {
 
-// Three medium icons and a large spacing wide, as tall as a text field.
-static constexpr double kMinimumWidth = 3 * 32 + 12;
-static constexpr double kHeight = 35;
+static constexpr double kMinimumWidth = 108;
+static constexpr double kHeight = design::compactControlHeight;
 static constexpr double kChevron = 16;
 static constexpr double kIcon = 22;
 // Half the small spacing between the box and its list.
@@ -322,8 +321,11 @@ void ComboBox::paint(Painter& painter)
                                                                      : ColorId::ComboBoxBackground);
     const bool open = m_menu && m_menu->isOpen();
     const bool focused = m_field ? m_field->hasFocus() : hasFocus();
-    painter.drawRoundedRect(localRect(), {theme.smallRadius, 0, themeCorners()}, background, 1,
-                            enabled && (focused || open) ? color(ColorId::ComboBoxFocusBorder) : background);
+    const RectF bounds = localRect();
+    const double radius = m_field ? std::clamp(bounds.height / 4, 0.0, 9.0) : bounds.height / 2;
+    painter.drawRoundedRect(bounds, {radius}, background, 1 / painter.scale(),
+                            enabled && (focused || open) ? color(ColorId::ComboBoxFocusBorder)
+                                                         : theme.text.withAlpha(theme.darkMode ? .14 : .08));
 }
 
 void ComboBox::enabledChanged()

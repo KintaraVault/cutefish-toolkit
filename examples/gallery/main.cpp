@@ -18,11 +18,13 @@
 #include "ui/keys.h"
 #include "ui/label.h"
 #include "ui/layout.h"
+#include "ui/menu.h"
 #include "ui/progress_bar.h"
 #include "ui/scroll_view.h"
 #include "ui/segmented_control.h"
 #include "ui/slider.h"
 #include "ui/switch.h"
+#include "ui/test_input.h"
 #include "ui/text_area.h"
 #include "ui/text_field.h"
 #include "ui/theme.h"
@@ -225,6 +227,25 @@ static int capture(const std::string& directory)
                 fprintf(stderr, "cutefish-toolkit-gallery: cannot write %s%s\n", directory.c_str(), file);
                 ++failures;
             }
+            Menu menu;
+            menu.setMinimumWidth(220);
+            menu.setItemGlyph(menu.addItem("Open", [] {}, "Enter"), "folder");
+            menu.addItem("Rename", [] {}, "F2");
+            menu.addSubmenu("Open With")->addItem("Text Editor", [] {});
+            menu.addSeparator();
+            menu.setItemEnabled(menu.addItem("Paste", [] {}, "Ctrl+V"), false);
+            menu.addItem("Move to Trash", [] {}, "Delete");
+            menu.popup(&window, {40, 72});
+            if (auto* popup = menu.window()) {
+                popup->setScale(scale);
+                popup->grab(kCaptureFrameNs);
+                TestInput::movePointer(*popup, {40, 18});
+                snprintf(file, sizeof(file), "/menu-%s-%g.png", name, scale);
+                if (popup->grab(kCaptureFrameNs).savePng(directory + file))
+                    continue;
+            }
+            fprintf(stderr, "cutefish-toolkit-gallery: could not capture menu (%s, %g×)\n", name, scale);
+            ++failures;
         }
     }
     Theme::setCurrent(light);

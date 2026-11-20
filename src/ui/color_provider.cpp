@@ -75,6 +75,8 @@ const ColorProvider& ColorProvider::forMode(bool darkMode)
         other.alternateBackground = colors.alternateBackground;
         other.text = colors.text;
         other.disabledText = colors.disabledText;
+        if (theme.highlight == (theme.darkMode ? accent::blueDark : accent::blue))
+            other.highlight = colors.highlight;
         cached.otherMode = std::make_unique<ColorProvider>(other);
     }
     return *cached.otherMode;

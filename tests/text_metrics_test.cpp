@@ -92,7 +92,8 @@ TEST(TextMetricsTest, PointSizesRoundToWholePixels)
 
 TEST(TextMetricsTest, WeightsKeepTheirAdvances)
 {
-    EXPECT_NEAR(Measured(11, 1.5, "System Monitor", 700).label->sizeHint().width, 86.9375, 0.02);
+    // Fontconfig/FreeType versions may round this run by two 1/64 px steps.
+    EXPECT_NEAR(Measured(11, 1.5, "System Monitor", 700).label->sizeHint().width, 86.9375, 0.04);
     if (!std::filesystem::exists(kMediumFace))
         GTEST_SKIP() << "no " << kMediumFace;
     EXPECT_NEAR(Measured(11, 1.5, "Name", 500).label->sizeHint().width, 31.5625, 0.02);

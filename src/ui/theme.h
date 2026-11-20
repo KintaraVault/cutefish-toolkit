@@ -9,6 +9,7 @@
 
 #include "base/signal.h"
 #include "ui/appearance_style.h"
+#include "ui/design_metrics.h"
 #include "ui/geometry.h"
 
 namespace cutefish::ui {
@@ -33,7 +34,7 @@ struct Theme
     double mediumRadius = 10;
     double bigRadius = 12;
     double hugeRadius = 14;
-    double windowRadius = 14;
+    double windowRadius = design::windowRadius;
 
     double smallSpacing = 6;
     double mediumSpacing = 9;
@@ -71,7 +72,8 @@ struct Theme
 };
 
 namespace accent {
-inline constexpr Color blue = Color::rgb(0x007AFF);
+inline constexpr Color blue = Color::rgb(0x0088FF);
+inline constexpr Color blueDark = Color::rgb(0x0091FF);
 inline constexpr Color red = Color::rgb(0xFF5C6D);
 inline constexpr Color green = Color::rgb(0x35BF56);
 inline constexpr Color purple = Color::rgb(0x8266FF);
@@ -86,6 +88,11 @@ inline constexpr std::array palette{blue, red, green, purple, pink, orange, grey
 inline constexpr Color fromIndex(int index)
 {
     return index >= 0 && index < int(palette.size()) ? palette[index] : blue;
+}
+
+inline constexpr Color forMode(int index, bool dark)
+{
+    return dark && fromIndex(index) == blue ? blueDark : fromIndex(index);
 }
 } // namespace accent
 

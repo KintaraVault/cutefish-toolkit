@@ -46,6 +46,12 @@ struct Layer
 // What changed in the window since the last presented frame.
 struct FrameDamage
 {
+    bool dialog = false;
+    bool dialogFrosted = false;
+    bool dialogGlassActive = false;
+    bool dialogContinuousCorners = false;
+    SizeF dialogSize;
+    std::optional<bool> dialogGlassDark;
     WallpaperTint wallpaperTint;
     mutable std::shared_ptr<const ColorProvider> wallpaperPalette;
     mutable uint64_t wallpaperThemeGeneration = 0;

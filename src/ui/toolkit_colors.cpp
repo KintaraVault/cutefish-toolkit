@@ -27,19 +27,17 @@ void addToolkitColors(ColorMixer& mixer, const Theme& theme, Color documentBackg
     mixer[ColorId::Highlight] = theme.highlight;
     mixer[ColorId::HighlightedText] = theme.highlightedText;
 
-    mixer[ColorId::DestructiveAction] = dark ? Color::rgb(0xFF453A) : Color::rgb(0xD92D20);
-    mixer[ColorId::Separator] = withAlpha(ColorId::DisabledText, dark ? 0.3 : 0.1);
+    mixer[ColorId::DestructiveAction] = dark ? Color::rgb(0xFF696B) : Color::rgb(0xB51F25);
+    mixer[ColorId::Separator] = withAlpha(ColorId::Text, dark ? 0.14 : 0.09);
     mixer[ColorId::HeaderSeparator] = withAlpha(ColorId::Text, dark ? 0.12 : 0.08);
     mixer[ColorId::ItemPressed] = withAlpha(ColorId::Text, dark ? 0.05 : 0.1);
     // Inactive windows keep the blur and halve the see-through instead of going opaque.
     mixer[ColorId::TranslucentWindowBackground] = withAlpha(ColorId::Background, dark ? 0.85 : 0.8);
     mixer[ColorId::TranslucentWindowBackgroundInactive] = withAlpha(ColorId::Background, dark ? 0.92 : 0.9);
 
-    mixer[ColorId::ButtonBackground] = ColorId::AlternateBackground;
-    mixer[ColorId::ButtonBackgroundHovered] = dark ? lighter(ColorId::ButtonBackground, 1.2)
-                                                   : darker(ColorId::ButtonBackground, 1.1);
-    mixer[ColorId::ButtonBackgroundPressed] = dark ? lighter(ColorId::ButtonBackground, 1.1)
-                                                   : darker(ColorId::ButtonBackground, 1.2);
+    mixer[ColorId::ButtonBackground] = withAlpha(ColorId::Text, dark ? .10 : .065);
+    mixer[ColorId::ButtonBackgroundHovered] = withAlpha(ColorId::Text, dark ? .15 : .10);
+    mixer[ColorId::ButtonBackgroundPressed] = withAlpha(ColorId::Text, dark ? .21 : .15);
     mixer[ColorId::ButtonFocusRing] = withAlpha(ColorId::Highlight, 0.5);
 
     mixer[ColorId::ComboBoxBackground] = ColorId::AlternateBackground;
@@ -70,8 +68,8 @@ void addToolkitColors(ColorMixer& mixer, const Theme& theme, Color documentBackg
     mixer[ColorId::SliderHandleShadowPressed] = kBlack.withAlpha(0.15);
 
     mixer[ColorId::SegmentedControlTrack] = dark ? kWhite.withAlpha(0.06) : kBlack.withAlpha(0.04);
-    mixer[ColorId::SegmentedControlPlate] = dark ? lighter(ColorId::SecondBackground, 2)
-                                                 : ColorRecipe(ColorId::SecondBackground);
+    mixer[ColorId::SegmentedControlPlate] = dark ? lighter(ColorId::SecondBackground, 1.52)
+                                                 : ColorRecipe(kWhite);
     mixer[ColorId::SegmentedControlPlateShadow] = kBlack.withAlpha(dark ? 0.18 : 0.12);
     mixer[ColorId::SegmentedControlTextPressed] = withAlpha(ColorId::Text, 0.5);
     mixer[ColorId::SegmentedTabBackground] = ColorId::AlternateBackground;
@@ -88,21 +86,22 @@ void addToolkitColors(ColorMixer& mixer, const Theme& theme, Color documentBackg
 
     mixer[ColorId::HeaderButtonTint] = dark ? kWhite : Color::rgb(0x323238);
 
-    mixer[ColorId::AlertBackground] = dark ? ColorRecipe(WallpaperTint::apply(Color::rgb(0x343434), wallpaperTone))
+    mixer[ColorId::AlertBackground] = dark ? ColorRecipe(WallpaperTint::apply(Color::rgb(0x252525), wallpaperTone))
                                           : ColorRecipe(ColorId::PanelBackground);
     mixer[ColorId::AlertText] = (dark ? kWhite : kBlack).withAlpha(0.847);
     // Flat fills with no edge: white in dark mode and black in light.
     mixer[ColorId::DialogButtonBackground] = (dark ? kWhite : kBlack).withAlpha(0.0756);
     mixer[ColorId::DialogButtonBackgroundPressed] = (dark ? kWhite : kBlack).withAlpha(0.165);
     mixer[ColorId::DialogButtonProminentText] = kWhite;
-    // A destructive button is its red text over a quarter of that red.
-    mixer[ColorId::DialogButtonDestructiveText] = dark ? Color::rgb(0xDC3929) : Color::rgb(0xEB4C46);
-    mixer[ColorId::DialogButtonDestructiveBackground] = dark ? Color::rgb(0xEC544C).withAlpha(0.25)
-                                                             : Color::rgb(0xEB4C46).withAlpha(0.25);
+    mixer[ColorId::DialogButtonDestructiveText] = ColorId::DestructiveAction;
+    mixer[ColorId::DialogButtonDestructiveBackground] =
+        (dark ? Color::rgb(0xFF4245) : Color::rgb(0xFF383C)).withAlpha(dark ? .20 : .13);
     mixer[ColorId::DialogButtonFocusRing] = withAlpha(ColorId::Highlight, 0.3);
 
-    mixer[ColorId::MenuHighlight] = withAlpha(ColorId::Highlight, dark ? 0.82 : 0.9);
-    mixer[ColorId::MenuSeparator] = dark ? kWhite.withAlpha(0.14) : kBlack.withAlpha(0.1);
+    // The kit's selected row uses a stronger blue than the system accent.
+    mixer[ColorId::MenuHighlight] = theme.highlight == (dark ? accent::blueDark : accent::blue)
+        ? ColorRecipe(Color::rgb(0x0069FA)) : darker(ColorId::Highlight, 1.22);
+    mixer[ColorId::MenuSeparator] = dark ? kWhite.withAlpha(0.14) : kBlack.withAlpha(0.07);
     mixer[ColorId::MenuDisabledText] = withAlpha(ColorId::Text, 0.4);
     mixer[ColorId::MenuShortcutText] = withAlpha(ColorId::Text, 0.5);
     // Dark glass over a bright backdrop washes out a grey chevron, so in
@@ -111,13 +110,13 @@ void addToolkitColors(ColorMixer& mixer, const Theme& theme, Color documentBackg
     mixer[ColorId::MenuArrowDisabled] = dark ? ColorId::MenuDisabledText : ColorId::DisabledText;
     mixer[ColorId::MenuScrollIndicator] = dark ? kWhite.withAlpha(0.35) : kBlack.withAlpha(0.25);
 
-    mixer[ColorId::WindowTabBarTrack] = dark ? kWhite.withAlpha(0.06) : kBlack.withAlpha(0.045);
+    mixer[ColorId::WindowTabBarTrack] = dark ? kWhite.withAlpha(0.075) : kBlack.withAlpha(0.065);
     // Light schemes are not always white; a translucent pill lifts off any of them.
-    mixer[ColorId::WindowTabBarSelected] = kWhite.withAlpha(dark ? 0.13 : 0.8);
+    mixer[ColorId::WindowTabBarSelected] = kWhite.withAlpha(dark ? 0.16 : 0.92);
     // Light mode raises a white pill on a pale track; a hairline keeps its edge.
     mixer[ColorId::WindowTabBarSelectedEdge] = dark ? kTransparent : Color::fromArgb(0x0F000000);
 
-    mixer[ColorId::ToolTipBackground] = withAlpha(ColorId::SecondBackground, 0.95);
+    mixer[ColorId::ToolTipBackground] = ColorId::SecondBackground;
     mixer[ColorId::ToolTipShadow] = kBlack.withAlpha(0.15);
     mixer[ColorId::ToastShadow] = kBlack.withAlpha(0.14);
 }

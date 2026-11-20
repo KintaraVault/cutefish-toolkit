@@ -18,11 +18,11 @@ Theme Theme::light()
 {
     Theme theme;
     theme.darkMode = false;
-    theme.background = Color::rgb(0xF5F6FA);
+    theme.background = Color::rgb(0xF6F6F6);
     theme.secondBackground = Color::rgb(0xFFFFFF);
-    theme.alternateBackground = Color::rgb(0xF2F4F5);
-    theme.text = Color::rgb(0x323238);
-    theme.disabledText = Color::rgb(0x64646E);
+    theme.alternateBackground = Color::rgb(0xEEEEEE);
+    theme.text = Color::rgb(0x262626);
+    theme.disabledText = Color::rgb(0x707070);
     theme.highlight = accent::blue;
     theme.highlightedText = Color::rgb(0xFFFFFF);
     return theme;
@@ -32,12 +32,12 @@ Theme Theme::dark()
 {
     Theme theme;
     theme.darkMode = true;
-    theme.background = Color::rgb(0x1C1C1D);
-    theme.secondBackground = Color::rgb(0x2C2C2D);
-    theme.alternateBackground = Color::rgb(0x3C3C3D);
+    theme.background = Color::rgb(0x1E1E1E);
+    theme.secondBackground = Color::rgb(0x292929);
+    theme.alternateBackground = Color::rgb(0x383838);
     theme.text = Color::rgb(0xFFFFFF);
-    theme.disabledText = Color::rgb(0x888888);
-    theme.highlight = accent::blue;
+    theme.disabledText = Color::rgb(0x969696);
+    theme.highlight = accent::blueDark;
     theme.highlightedText = Color::rgb(0xFFFFFF);
     return theme;
 }

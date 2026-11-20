@@ -74,7 +74,7 @@ TEST(ControlsTest, TogglesKeepTheirPadding)
     window.grab();
     EXPECT_EQ(check->sizeHint().width, 28);
     EXPECT_EQ(check->sizeHint().height, 28);
-    EXPECT_EQ(toggle->sizeHint().width, 52);
+    EXPECT_EQ(toggle->sizeHint().width, 60);
     EXPECT_EQ(toggle->sizeHint().height, 20);
     const double width = radio->sizeHint().width;
     // As horizontalPadding: 0.
@@ -119,8 +119,8 @@ TEST(ControlsTest, SliderSnapsToSteps)
     Slider* control = host(window, std::move(slider));
     double moved = -1;
     control->onMoved = [&moved](double value) { moved = value; };
-    // The handle's centre travels 200 pixels, from 11 to 211.
-    TestInput::click(window, {11 + 200 * 0.36, 16});
+    // The 20 px handle's centre travels from 10 to 212.
+    TestInput::click(window, {10 + 202 * 0.36, 16});
     EXPECT_EQ(control->value(), 4);
     EXPECT_EQ(moved, 4);
     control->setFocus();
@@ -441,11 +441,10 @@ TEST(ControlsTest, EditableComboBoxPlacesItsField)
     box->setLayoutHints({.preferredWidth = 110});
     box->setEditable(true);
     window.grab();
-    EXPECT_EQ(box->field()->geometry(), (RectF{12, 0, 86, 35}));
+    EXPECT_EQ(box->field()->geometry(), (RectF{12, 0, 86, 28}));
 }
 
-// FishUI's indicator, 16 high at a whole logical y (10 in a 35 high box),
-// and no hover colour: only a press darkens the box.
+// The indicator is centred on a whole logical pixel. A press changes the fill.
 TEST(ControlsTest, ComboBoxChevronAndHover)
 {
     Window window;
@@ -453,9 +452,9 @@ TEST(ControlsTest, ComboBoxChevronAndHover)
     ComboBox* box = host(window, std::make_unique<ComboBox>(std::vector<std::string>{"Never", "Every Day"}));
     window.grab();
     const RectF bounds = box->geometry();
-    ASSERT_EQ(bounds.height, 35);
+    ASSERT_EQ(bounds.height, 28);
     const View* chevron = box->children()[1].get();
-    EXPECT_EQ(chevron->geometry(), (RectF{bounds.width - 12 - 16, 10, 16, 16}));
+    EXPECT_EQ(chevron->geometry(), (RectF{bounds.width - 12 - 16, 6, 16, 16}));
 
     const auto fill = [&window, bounds] { return window.grab().pixel(int(bounds.x + 6), int(bounds.y + 17)); };
     const Color rest = fill();

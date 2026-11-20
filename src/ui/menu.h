@@ -117,7 +117,7 @@ public:
         m_arrowWidth = width;
         m_arrowLength = length;
     }
-    // Continuous corners on the body; circular by default.
+    // Continuous corners on the body by default; false uses circular corners.
     void setContinuousCorners(bool continuous) { m_continuousCorners = continuous; }
     // Where the menu stays, in the window's coordinates, as
     // MenuPopupWindow's availableGeometry; unset, the window's screen size.
@@ -217,7 +217,7 @@ private:
     bool m_dropDown = false;
     BubbleShape::Edge m_arrowEdge = BubbleShape::Edge::None;
     PointF m_arrowTarget;
-    bool m_continuousCorners = false;
+    bool m_continuousCorners = true;
     double m_arrowWidth = BubbleShape().arrowWidth;
     double m_arrowLength = BubbleShape().arrowLength;
     std::optional<RectF> m_availableGeometry;

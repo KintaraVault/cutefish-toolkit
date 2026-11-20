@@ -760,11 +760,18 @@ void Window::paintContent(SkCanvas* canvas, const SkRegion* region)
         updateLayers(m_toolTip.get(), {}, canvas, &window);
 
     const auto paintInside = [&](SkCanvas* target) {
-        target->clear(backgroundColor().argb());
+        const bool dialog = m_frameDamage->dialog;
+        target->clear(dialog ? 0 : backgroundColor().argb());
         target->save();
         if (ratio != 1)
             target->scale(SkScalar(ratio), SkScalar(ratio));
         Painter painter(target, m_scale);
+        const RectF bounds {0, 0, m_size.width, m_size.height};
+        if (dialog) {
+            painter.clipRoundedRect(bounds, design::dialogRadius, themeCorners());
+            if (!m_frameDamage->dialogGlassActive)
+                painter.fillRect(bounds, backgroundColor());
+        }
         if (region)
             painter.setDamage(region);
         m_contentView->paintTree(painter, region);
@@ -772,6 +779,11 @@ void Window::paintContent(SkCanvas* canvas, const SkRegion* region)
             m_overlay->paintTree(painter, region);
         if (m_toolTip)
             m_toolTip->paintTree(painter, region);
+        if (dialog) {
+            const auto edge = Theme::current().darkMode ? Color::rgb(0xFFFFFF).withAlpha(.16)
+                                                       : Color::rgb(0x000000).withAlpha(.10);
+            painter.strokeRoundedRect(bounds, design::dialogRadius, edge, 1, themeCorners());
+        }
         target->restore();
     };
     if (region && ratio != 1)
@@ -788,7 +800,8 @@ void Window::applyTextTarget() const
     application->text().setTranslucentSubpixel(m_translucentSubpixel);
     // Embedded windows already draw into canvases without a pixel geometry
     // when they are not opaque.
-    application->text().setTransparentWindow(m_backgroundColor && backgroundColor().a == 0
+    application->text().setTransparentWindow((m_frameDamage->dialogGlassActive
+                                              || (m_backgroundColor && backgroundColor().a == 0))
                                              && application->platform() != Application::Platform::Embedded);
 }
 

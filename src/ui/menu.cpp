@@ -26,8 +26,8 @@
 namespace cutefish::ui {
 
 // Row, separator and surface metrics.
-static constexpr double kRowHeight = 26;
-static constexpr double kSeparatorHeight = 12;
+static constexpr double kRowHeight = design::menuRowHeight;
+static constexpr double kSeparatorHeight = design::menuSeparatorHeight;
 static constexpr double kMinimumRowWidth = 158;
 static constexpr double kContentMargin = 5;
 static constexpr double kVerticalContentMargin = 5;
@@ -336,7 +336,7 @@ protected:
                 continue;
             }
             if (int(i) == m_current && m_menu->m_items[row.index].enabled) {
-                painter.drawRoundedRect(row.rect, {theme.windowRadius - kContentMargin, 0, themeCorners()},
+                painter.drawRoundedRect(row.rect, {design::menuItemRadius, 0, themeCorners()},
                                         color(ColorId::MenuHighlight));
             }
         }
@@ -768,11 +768,16 @@ protected:
             return;
         if (m_glass.update(*window()))
             return;
-        // Without the compositor's blur: opaque, in the window radius.
-        if (isShaped())
-            painter.fillPath(shape().path(), theme.secondBackground);
-        else
-            painter.fillRoundedRect(localRect(), theme.windowRadius, theme.secondBackground);
+        // Without compositor glass retain the silhouette and a visible edge.
+        const double pixel = 1 / painter.scale();
+        if (isShaped()) {
+            const auto path = shape().path();
+            painter.fillPath(path, theme.secondBackground);
+            painter.strokePath(path, theme.text.withAlpha(.14), pixel);
+        } else {
+            painter.drawRoundedRect(localRect(), {design::menuRadius}, theme.secondBackground,
+                                    pixel, theme.text.withAlpha(.14));
+        }
     }
 
     void pointerMove(const PointerEvent& event) override { m_rows->pointerMoved(mapToWindow(event.position)); }
@@ -969,8 +974,8 @@ BubbleShape Menu::bubble(SizeF size, double arrowPosition) const
     BubbleShape shape;
     shape.width = size.width;
     shape.height = size.height;
-    shape.radius = Theme::current().windowRadius;
-    shape.continuousCorners = m_continuousCorners;
+    shape.radius = m_arrowEdge == BubbleShape::Edge::None ? design::menuRadius : design::popoverRadius;
+    shape.continuousCorners = m_continuousCorners && Theme::current().continuousCorners;
     shape.arrowEdge = m_arrowEdge;
     shape.arrowPosition = arrowPosition;
     shape.arrowWidth = m_arrowWidth;
@@ -1152,13 +1157,13 @@ void Menu::activate(size_t index)
 
 void Menu::applyBlur(SizeF size, double arrowPosition)
 {
+    const BubbleShape shape = bubble(size, arrowPosition);
     if (m_arrowEdge != BubbleShape::Edge::None || m_continuousCorners) {
         // The glass is the body, masked by the whole outline.
-        const BubbleShape shape = bubble(size, arrowPosition);
-        m_window->setBackgroundBlur(shape.bodyRect(), Theme::current().windowRadius);
+        m_window->setBackgroundBlur(shape.bodyRect(), shape.radius);
         m_window->setBackgroundBlurShape(shape.path());
     } else {
-        m_window->setBackgroundBlur({0, 0, size.width, size.height}, Theme::current().windowRadius);
+        m_window->setBackgroundBlur({0, 0, size.width, size.height}, shape.radius);
     }
 }
 

@@ -34,7 +34,7 @@ namespace cutefish::ui {
 
 static constexpr double kMinimumWidth = 200;
 // A medium icon and half the small spacing.
-static constexpr double kHeight = 35;
+static constexpr double kHeight = 36;
 // The focus ring, outside the field.
 static constexpr double kFocusRing = 2;
 // The caret blinks on a coarse timer of half the cursor flash time, which
@@ -663,15 +663,17 @@ void TextField::paint(Painter& painter)
     const double scale = painter.scale();
     const RectF bounds = localRect();
     const bool focused = hasFocus();
+    // The kit pairs 24, 28 and 36 px fields with 6, 7 and 9 px corners.
+    const double radius = std::clamp(bounds.height / 4, 0.0, 9.0);
 
     // The background, its focus ring concentric through the inset.
     if (d->frameVisible) {
-        painter.drawRoundedRect(bounds, {theme.smallRadius, 0, themeCorners()}, theme.alternateBackground, 1,
-                                focused ? theme.highlight : theme.alternateBackground);
+        painter.drawRoundedRect(bounds, {radius, 0, themeCorners()}, theme.alternateBackground, 1 / scale,
+                                focused ? theme.highlight : theme.text.withAlpha(theme.darkMode ? .14 : .08));
     }
     if (focused && d->frameVisible) {
         painter.drawRoundedRect(bounds.adjusted(-kFocusRing, -kFocusRing, kFocusRing, kFocusRing),
-                                {theme.smallRadius, -kFocusRing, themeCorners()}, Color{0, 0, 0, 0}, 2,
+                                {radius, -kFocusRing, themeCorners()}, Color{0, 0, 0, 0}, 2,
                                 color(ColorId::TextFieldFocusRing));
     }
 

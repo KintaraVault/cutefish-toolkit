@@ -79,6 +79,7 @@ set(CUTEFISH_TOOLKIT_PUBLIC_HEADERS
     ui/color_mixer.h
     ui/color_provider.h
     ui/combo_box.h
+    ui/design_metrics.h
     ui/dialog_window.h
     ui/drag.h
     ui/drop_down_popup.h

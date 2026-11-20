@@ -14,6 +14,7 @@
 namespace cutefish::ui {
 
 class Label;
+class Icon;
 class Window;
 
 // A dialog button: a flat pill with no edge, in the accent colour when
@@ -42,6 +43,8 @@ protected:
     void enabledChanged() override;
     void pointerPress(const PointerEvent& event) override;
     void pointerRelease(const PointerEvent& event) override;
+    void hoverChanged() override;
+    void focusOut() override;
     bool keyPress(const KeyEvent& event) override;
     bool keyRelease(const KeyEvent& event) override;
 
@@ -72,6 +75,8 @@ public:
     DialogButton* confirm() const { return m_confirm; }
 
     void setText(std::string text);
+    void setIcon(std::string glyph);
+    void setDestructive(bool destructive);
     void setCancelVisible(bool visible);
     // Room left above the title, for window controls over it.
     void setTopInset(double inset);
@@ -83,8 +88,10 @@ protected:
     void layout() override;
 
 private:
-    bool buttonsSideBySide() const;
+    bool buttonsSideBySide(double width) const;
 
+    View* m_badge;
+    Icon* m_icon;
     Label* m_title;
     Label* m_text;
     DialogButton* m_cancel;
@@ -153,6 +160,8 @@ public:
     void setText(std::string text);
     void setConfirmText(std::string text);
     void setCancelText(std::string text);
+    // A Cutefish toolkit glyph; an empty name hides the icon.
+    void setIcon(std::string glyph);
     void setDestructive(bool destructive);
     void setCancelVisible(bool visible);
 
@@ -163,6 +172,7 @@ public:
     std::function<void()> onRejected;
 
 private:
+    class Root;
     void finish(bool accepted);
     void setButtonTexts(std::string confirm, std::string cancel);
 
@@ -173,8 +183,10 @@ private:
     std::string m_cancel;
     bool m_destructive = false;
     bool m_cancelVisible = true;
+    std::string m_icon = "info";
     std::unique_ptr<Window> m_window;
     AlertView* m_alert = nullptr;
+    Root* m_root = nullptr;
     bool m_defaultConfirm = true;
     bool m_defaultCancel = true;
     base::Subscription m_languageChanged;

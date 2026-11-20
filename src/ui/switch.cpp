@@ -12,8 +12,8 @@
 
 namespace cutefish::ui {
 
-static constexpr SizeF kIndicator = {36, 20};
-static constexpr double kHandle = 16;
+static constexpr SizeF kIndicator = {44, 20};
+static constexpr SizeF kHandle = {26, 16};
 static constexpr double kHandleMargin = 2;
 
 static Color mix(Color from, Color to, double t)
@@ -67,12 +67,12 @@ void Switch::paintIndicator(Painter& painter, const RectF& rect)
     if (!isEnabled())
         painter.multiplyOpacity(0.55);
     painter.drawSmoothRectangle(rect, rect.height / 2, mix(off, on, m_color));
-    const double travel = rect.width - kHandle - 2 * kHandleMargin;
+    const double travel = rect.width - kHandle.width - 2 * kHandleMargin;
     const RectF handle = {rect.x + kHandleMargin + travel * m_handle,
-                          rect.y + (rect.height - kHandle) / 2, kHandle, kHandle};
+                          rect.y + (rect.height - kHandle.height) / 2, kHandle.width, kHandle.height};
     if (isEnabled())
-        painter.drawShadow(handle, kHandle / 2, 0.9, Color::rgb(0).withAlpha(0.19), {0, 1});
-    painter.drawSmoothRectangle(handle, kHandle / 2, color(ColorId::SwitchHandle),
+        painter.drawShadow(handle, kHandle.height / 2, 0.9, Color::rgb(0).withAlpha(0.19), {0, 1});
+    painter.drawSmoothRectangle(handle, kHandle.height / 2, color(ColorId::SwitchHandle),
                                 0.5, Color::rgb(0).withAlpha(0.08));
     painter.restore();
 }

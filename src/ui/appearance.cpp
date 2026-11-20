@@ -161,7 +161,7 @@ void AppearanceWatcher::apply(sd_bus_message* reply)
     sd_bus_message_exit_container(reply);
 
     Theme theme = dark ? Theme::dark() : Theme::light();
-    theme.highlight = ui::accent::fromIndex(style.accentColor);
+    theme.highlight = ui::accent::forMode(style.accentColor, dark);
     theme.fontPointSize = pointSize;
     theme.fontFamily = family;
     theme.fixedFontFamily = fixedFamily;
