@@ -3,6 +3,8 @@
 
 #include <gtest/gtest.h>
 
+#include <climits>
+
 #include <algorithm>
 
 #include "base/strings.h"

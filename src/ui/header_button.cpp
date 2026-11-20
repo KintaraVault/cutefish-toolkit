@@ -13,6 +13,7 @@
 #include "ui/icon_loader.h"
 #include "ui/painter.h"
 #include "ui/theme.h"
+#include "ui/toolbar_surface.h"
 #include "ui/window.h"
 #include "ui/window_controls.h"
 
@@ -57,6 +58,14 @@ void HeaderButton::setHighlighted(bool highlighted)
     requestPaint();
 }
 
+void HeaderButton::setToolbarAppearance(bool enabled)
+{
+    if (m_toolbarAppearance == enabled)
+        return;
+    m_toolbarAppearance = enabled;
+    requestPaint();
+}
+
 void HeaderButton::setPlateAlphas(PlateAlphas light, PlateAlphas dark)
 {
     m_light = light;
@@ -96,13 +105,26 @@ void HeaderButton::setSegment(bool segment)
     requestPaint();
 }
 
+void HeaderButton::setForcesColoredWindowControl(bool colored)
+{
+    if (m_forcesColored == colored)
+        return;
+    m_forcesColored = colored;
+    requestPaint();
+}
+
+bool HeaderButton::isWindowControlColored() const
+{
+    return m_forcesColored || Theme::current().coloredWindowControls;
+}
+
 RectF HeaderButton::visualRect() const
 {
     if (!m_windowControl)
         return View::visualRect();
     window_controls::State state;
     state.artwork = currentArtwork();
-    state.colored = Theme::current().coloredWindowControls;
+    state.colored = isWindowControlColored();
     return window_controls::visualRect(localRect(), state);
 }
 
@@ -114,7 +136,7 @@ void HeaderButton::paintWindowControl(Painter& painter)
     state.dark = window ? window->headerDarkMode() : Theme::current().darkMode;
     state.active = window && window->isActive();
     state.enabled = isEnabled();
-    state.colored = Theme::current().coloredWindowControls;
+    state.colored = isWindowControlColored();
     state.hovered = m_hovered || (state.colored && m_groupHovered);
     state.pressed = m_pressed || m_checked;
     window_controls::paint(painter, localRect(), state);
@@ -136,12 +158,10 @@ void HeaderButton::paintSegment(Painter& painter)
     }
     if (m_glyph.empty())
         return;
-    const RectF bounds = localRect();
-    const Rect icon = painter.snappedRect({std::round((bounds.width - m_glyphSize) / 2),
-                                          std::round((bounds.height - m_glyphSize) / 2), m_glyphSize, m_glyphSize});
+    const Rect icon = painter.centeredSquare(localRect(), m_glyphSize);
     const bool active = window && window->isActive();
     const Color ink = window_controls::inkColor(dark, active || m_hovered);
-    sk_sp<SkImage> image = IconLoader::instance().glyph(m_glyph, icon.width, ink);
+    sk_sp<SkImage> image = IconLoader::instance().centeredGlyph(m_glyph, icon.width, ink, painter.scale());
     painter.save();
     painter.multiplyOpacity(isEnabled() ? 1.0 : 0.35);
     painter.drawImage(image.get(), icon.x, icon.y);
@@ -163,16 +183,18 @@ void HeaderButton::paint(Painter& painter)
     const bool dark = window ? window->headerDarkMode() : Theme::current().darkMode;
     const Color tint = ColorProvider::forMode(dark).get(ColorId::HeaderButtonTint);
     const Rect box = painter.deviceRect(localRect());
-    // The icon at whole logical pixels in the button, then snapped onto the
-    // device grid as Icon snaps it.
     const double iconSize = m_glyph.empty() ? kArtwork : m_glyphSize;
     const RectF bounds = localRect();
-    const Rect icon = painter.snappedRect({std::round((bounds.width - iconSize) / 2),
-                                          std::round((bounds.height - iconSize) / 2), iconSize, iconSize});
+    const Rect icon = painter.centeredSquare(bounds, iconSize);
 
     // The plate keeps the icon's parity, so both stay centred on the same pixel.
     const bool pressed = m_pressed || m_checked;
-    if (isEnabled() && (pressed || m_hovered || m_highlighted)) {
+    if (m_toolbarAppearance) {
+        const RectF plate = bounds.shrunk(Margins::all(1));
+        toolbar_surface::capsule(painter, plate, dark);
+        if (isEnabled() && (pressed || m_hovered || m_highlighted))
+            toolbar_surface::highlight(painter, plate.shrunk(Margins::all(2)), dark, pressed);
+    } else if (isEnabled() && (pressed || m_hovered || m_highlighted)) {
         const PlateAlphas& alphas = dark ? m_dark : m_light;
         const double alpha = pressed ? alphas.pressed : alphas.hovered;
         const int margin = int(std::lround(m_size * 0.1 * painter.scale()));
@@ -191,8 +213,8 @@ void HeaderButton::paint(Painter& painter)
     const int side = icon.width;
     const Color ink = m_glyphColor.value_or(tint);
     sk_sp<SkImage> image = m_glyph.empty()
-            ? IconLoader::instance().glyph("window-" + artworkName, side, ink)
-            : IconLoader::instance().glyph(m_glyph, side, ink);
+            ? IconLoader::instance().centeredGlyph("window-" + artworkName, side, ink, painter.scale())
+            : IconLoader::instance().centeredGlyph(m_glyph, side, ink, painter.scale());
     painter.save();
     painter.multiplyOpacity(opacity);
     painter.drawImage(image.get(), icon.x, icon.y);

@@ -18,6 +18,7 @@
 
 #include "ui/application.h"
 #include "ui/bitmap.h"
+#include "ui/color_provider_scope.h"
 #include "ui/layer.h"
 #include "ui/painter.h"
 #include "ui/text_context.h"
@@ -745,6 +746,8 @@ static SkRegion composedRegion(const SkRegion& region, double ratio, const SkIRe
 
 void Window::paintContent(SkCanvas* canvas, const SkRegion* region)
 {
+    const auto palette = wallpaperPalette();
+    const ColorProviderScope colors(palette.get());
     const double ratio = composition(canvas, m_size, m_scale);
     const SkIRect buffer = SkIRect::MakeWH(canvas->imageInfo().width(), canvas->imageInfo().height());
     const SkIRect window = ratio == 1 ? buffer
@@ -796,6 +799,8 @@ bool Window::hasPendingDamage() const
 
 std::vector<Rect> Window::paintFrame(SkCanvas* canvas, int bufferAge)
 {
+    const auto palette = wallpaperPalette();
+    const ColorProviderScope colors(palette.get());
     applyTextTarget();
     FrameDamage& damage = *m_frameDamage;
     // Damage is kept in the window's pixels at its scale, which the buffer

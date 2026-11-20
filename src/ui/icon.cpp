@@ -20,10 +20,7 @@ namespace cutefish::ui {
 // raster centred on the view, then snapped.
 static Rect iconRect(const Painter& painter, const RectF& bounds, double size)
 {
-    const int side = std::max(1, int(std::lround(size * painter.scale())));
-    const double extent = side / painter.scale();
-    return painter.snappedRect({bounds.x + (bounds.width - extent) / 2, bounds.y + (bounds.height - extent) / 2,
-                                extent, extent});
+    return painter.centeredSquare(bounds, size);
 }
 
 Icon::Icon(std::string name, double size)
@@ -57,6 +54,14 @@ void Icon::setSize(double size)
     requestLayout();
 }
 
+void Icon::setInkCentered(bool centered)
+{
+    if (m_inkCentered == centered)
+        return;
+    m_inkCentered = centered;
+    requestPaint();
+}
+
 void Icon::paint(Painter& painter)
 {
     if (m_name.empty())
@@ -64,7 +69,10 @@ void Icon::paint(Painter& painter)
     const Theme& theme = Theme::current();
     const Color color = isEnabled() ? (m_color ? m_color->resolve() : theme.text) : theme.disabledText;
     const Rect rect = iconRect(painter, localRect(), m_size);
-    if (sk_sp<SkImage> image = IconLoader::instance().glyph(m_name, rect.width, color, painter.scale()))
+    auto& loader = IconLoader::instance();
+    const auto image = m_inkCentered ? loader.centeredGlyph(m_name, rect.width, color, painter.scale())
+                                     : loader.glyph(m_name, rect.width, color, painter.scale());
+    if (image)
         painter.drawImage(image.get(), rect.x, rect.y);
 }
 

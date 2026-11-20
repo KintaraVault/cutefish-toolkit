@@ -13,6 +13,7 @@
 #include "ui/color_mixer.h"
 #include "ui/event.h"
 #include "ui/geometry.h"
+#include "ui/wallpaper_tint.h"
 #include "ui/image.h"
 #include "ui/view.h"
 
@@ -194,6 +195,8 @@ public:
     // A colour with alpha makes the window translucent. Unset is the theme's
     // background; a recipe naming theme colours follows the theme.
     void setBackgroundColor(std::optional<ColorRecipe> color);
+    // Compositor-provided material adjustment, not a tint over rendered pixels.
+    void setWallpaperTint(WallpaperTint tint);
     // A tool tip over a rect of the view, in its coordinates, until unpinned,
     // such as one showing a control's state; hover tool tips wait meanwhile.
     void pinToolTip(View* view, const RectF& rect, std::string text);
@@ -441,6 +444,7 @@ private:
     friend class EmbeddedWindow;
     friend class FrameClient;
     friend class HeaderBackdrop;
+    std::shared_ptr<const ColorProvider> wallpaperPalette() const;
     friend class PlatformWindow;
     friend class StatusItem;
     friend class Subsurface;

@@ -20,6 +20,7 @@
 #include <cutefish-shell-v1-client-protocol.h>
 #include <cutefish-status-item-v1-client-protocol.h>
 #include <cutefish-surface-blur-v1-client-protocol.h>
+#include <cutefish-wallpaper-tint-v1-client-protocol.h>
 #include <cutefish-window-hints-v1-client-protocol.h>
 #include <cutefish-window-placement-v1-client-protocol.h>
 #include <fractional-scale-v1-client-protocol.h>
@@ -113,6 +114,9 @@ struct ConnectionListeners
         } else if (strcmp(interface, cutefish_surface_blur_v1_interface.name) == 0) {
             self->m_surfaceBlur = bind<cutefish_surface_blur_v1>(
                 registry, name, &cutefish_surface_blur_v1_interface, version, 1);
+        } else if (strcmp(interface, cutefish_wallpaper_tint_manager_v1_interface.name) == 0) {
+            self->m_wallpaperTint = bind<cutefish_wallpaper_tint_manager_v1>(
+                registry, name, &cutefish_wallpaper_tint_manager_v1_interface, version, 1);
         } else if (strcmp(interface, cutefish_window_hints_v1_interface.name) == 0) {
             self->m_windowHints = bind<cutefish_window_hints_v1>(
                 registry, name, &cutefish_window_hints_v1_interface, version, 1);
@@ -739,6 +743,8 @@ Connection::~Connection()
         cutefish_window_placement_v1_destroy(m_windowPlacement);
     if (m_surfaceBlur)
         cutefish_surface_blur_v1_destroy(m_surfaceBlur);
+    if (m_wallpaperTint)
+        cutefish_wallpaper_tint_manager_v1_destroy(m_wallpaperTint);
     if (m_statusItems)
         cutefish_status_item_manager_v1_destroy(m_statusItems);
     if (m_mainMenus)

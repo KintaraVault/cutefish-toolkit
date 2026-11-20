@@ -18,6 +18,16 @@ namespace cutefish::ui {
 
 static constexpr const char* kItemMime = "application/x-cutefish-toolbar-item";
 static constexpr double kGap = 5;
+static constexpr double kPlateHeight = 30;
+static constexpr double kCaptionHeight = 10;
+static constexpr double kGlyphSize = 20;
+static constexpr double kChevronSize = 8;
+static constexpr double kChevronGap = 2;
+
+static double plateTop(double height, bool caption)
+{
+    return std::max(0.0, (height - kPlateHeight - (caption ? kCaptionHeight : 0)) / 2);
+}
 
 class Toolbar::Tile : public View
 {
@@ -43,10 +53,15 @@ public:
         } else if (!glyph.empty()) {
             glyphs.push_back(glyph);
         }
-        for (const auto& icon : glyphs)
-            m_icons.push_back(addChild<Icon>(icon, 20));
-        if (item && item->dropdown)
-            m_chevron = addChild<Icon>("chevron-down-small", 8);
+        for (const auto& icon : glyphs) {
+            auto* glyph = addChild<Icon>(icon, kGlyphSize);
+            glyph->setInkCentered(true);
+            m_icons.push_back(glyph);
+        }
+        if (item && item->dropdown) {
+            m_chevron = addChild<Icon>("chevron-down-small", kChevronSize);
+            m_chevron->setInkCentered(true);
+        }
         m_label = addChild<Label>(std::move(label));
         m_label->setFontSize(10);
         m_label->setElide(Label::Elide::Right);
@@ -67,16 +82,20 @@ protected:
         const bool stacked = (m_palette && spacer()) || (icon && m_label->isVisible());
         const RectF box = localRect();
         const auto plate = plateRect();
-        const double step = m_icons.size() == 4 ? std::min(32.0, (plate.width - 4) / 4) : 23.0;
-        double x = (box.width - (m_icons.empty() ? 0.0 : (m_icons.size() - 1) * step + 20) - (m_chevron ? 9 : 0)) / 2;
+        const double accessory = m_chevron ? kChevronGap + kChevronSize : 0;
+        const double step = m_icons.size() > 1
+            ? std::clamp((plate.width - 4 - kGlyphSize - accessory) / (m_icons.size() - 1), 0.0, 32.0) : 0.0;
+        const double glyphWidth = m_icons.empty() ? 0 : (m_icons.size() - 1) * step + kGlyphSize;
+        double x = plate.x + (plate.width - glyphWidth - accessory) / 2;
         for (auto* glyph : m_icons) {
             glyph->setVisible(icon);
-            glyph->setGeometry({x, plate.y + (plate.height - 20) / 2, 20, 20});
+            glyph->setGeometry({x, plate.y + (plate.height - kGlyphSize) / 2, kGlyphSize, kGlyphSize});
             x += step;
         }
         if (m_chevron) {
             m_chevron->setVisible(icon);
-            m_chevron->setGeometry({x - 1, plate.y + (plate.height - 8) / 2, 8, 8});
+            m_chevron->setGeometry({plate.x + (plate.width + glyphWidth - accessory) / 2 + kChevronGap,
+                                    plate.y + (plate.height - kChevronSize) / 2, kChevronSize, kChevronSize});
         }
         m_label->setGeometry({1, stacked ? plate.bottom() : 0.0, std::max(0.0, box.width - 2), stacked ? box.height - plate.bottom() : box.height});
         m_label->setColor(stacked ? std::optional<ColorId>(ColorId::DisabledText) : std::nullopt);
@@ -183,9 +202,10 @@ private:
         const auto box = localRect();
         if (m_id == DefaultSet)
             return box;
-        const double height = std::min(30.0, box.height);
-        const double width = m_palette ? std::min(box.width, m_icons.size() > 1 ? m_icons.size() * 32.0 + 4 : m_chevron ? 40.0 : 30.0) : box.width;
-        return {(box.width - width) / 2, 0, width, height};
+        const double height = std::min(kPlateHeight, box.height);
+        const double width = m_palette ? std::min(box.width, m_icons.size() > 1 ? m_icons.size() * 32.0 + 4 : m_chevron ? 40.0 : kPlateHeight) : box.width;
+        return {(box.width - width) / 2, plateTop(box.height, m_palette || m_owner.display() == Display::IconsAndText),
+                width, height};
     }
 
     void activated()
@@ -330,7 +350,7 @@ SizeF Toolbar::sizeHint() const
             width += id == Space ? 17 : 8;
         }
     }
-    return {width, m_display == Display::IconsAndText ? 40.0 : 30.0};
+    return {width, kPlateHeight + (m_display == Display::IconsAndText ? kCaptionHeight : 0)};
 }
 
 void Toolbar::layout()
@@ -376,7 +396,8 @@ void Toolbar::paint(Painter& painter)
             ++i;
         const auto a = children()[start]->geometry();
         const auto b = children()[i]->geometry();
-        toolbar_surface::capsule(painter, {a.x, 0, b.right() - a.x, std::min(30.0, a.height)}, Theme::current().darkMode);
+        toolbar_surface::capsule(painter, {a.x, plateTop(a.height, m_display == Display::IconsAndText),
+                                          b.right() - a.x, std::min(kPlateHeight, a.height)}, Theme::current().darkMode);
         ++i;
     }
     if (m_insert >= 0) {

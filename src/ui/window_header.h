@@ -55,6 +55,8 @@ public:
     // The controls' side, window_controls::kButton by default, for bars too
     // low for full-size controls.
     void setButtonSize(double size);
+    // Keep the desktop's preference by default, or always use traffic lights.
+    void setForcesColoredControls(bool colored);
 
     // The content spans the whole bar and lies under the buttons, for windows
     // whose sidebar runs beneath them.

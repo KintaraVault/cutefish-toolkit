@@ -465,7 +465,8 @@ void IconLoader::store(const std::string& key, sk_sp<SkImage> image)
     }
 }
 
-static sk_sp<SkImage> renderSvg(const sk_sp<SkSVGDOM>& svg, int size, const Color* tint, int height = 0)
+static sk_sp<SkImage> renderSvg(const sk_sp<SkSVGDOM>& svg, int size, const Color* tint, int height = 0,
+                               PointF offset = {})
 {
     const int width = size;
     if (height <= 0)
@@ -494,6 +495,7 @@ static sk_sp<SkImage> renderSvg(const sk_sp<SkSVGDOM>& svg, int size, const Colo
         root->setHeight(SkSVGLength(100, SkSVGLength::Unit::kPercentage));
     }
     svg->setContainerSize(SkSize::Make(SkScalar(width), SkScalar(height)));
+    canvas->translate(SkScalar(offset.x * width), SkScalar(offset.y * height));
     if (tint) {
         // A single-colour glyph takes the colour wherever it has coverage.
         SkPaint paint;
@@ -509,14 +511,52 @@ static sk_sp<SkImage> renderSvg(const sk_sp<SkSVGDOM>& svg, int size, const Colo
 
 sk_sp<SkImage> IconLoader::glyph(const std::string& name, int size, Color color, double scale)
 {
+    return rasterGlyph(name, size, color, scale, false);
+}
+
+sk_sp<SkImage> IconLoader::centeredGlyph(const std::string& name, int size, Color color, double scale)
+{
+    return rasterGlyph(name, size, color, scale, true);
+}
+
+static PointF glyphOffset(const sk_sp<SkSVGDOM>& svg)
+{
+    // Measure the outline independently of the final raster's parity and
+    // tint. Apply the correction to the vector, not by resampling pixels.
+    constexpr int side = 128;
+    const auto probe = renderSvg(svg, side, nullptr);
+    SkBitmap alpha;
+    if (!probe || !alpha.tryAllocPixels(SkImageInfo::MakeA8(side, side))
+        || !probe->readPixels(alpha.pixmap(), 0, 0))
+        return {};
+    int left = side, right = 0, top = side, bottom = 0;
+    for (int y = 0; y < side; ++y) {
+        const uint8_t* row = alpha.getAddr8(0, y);
+        for (int x = 0; x < side; ++x) {
+            if (row[x] < 64)
+                continue;
+            left = std::min(left, x);
+            right = std::max(right, x + 1);
+            top = std::min(top, y);
+            bottom = std::max(bottom, y + 1);
+        }
+    }
+    if (right <= left || bottom <= top)
+        return {};
+    return {(side - left - right) / (2.0 * side), (side - top - bottom) / (2.0 * side)};
+}
+
+sk_sp<SkImage> IconLoader::rasterGlyph(const std::string& name, int size, Color color, double scale, bool center)
+{
     // At 12 logical pixels and below the chevrons thin to under one; they
     // have heavier drawings for that.
     std::string file = name;
-    if (size / scale <= 12 + 1e-6 && name.starts_with("chevron-"))
+    if (size / scale <= 12 + 0.5 / scale + 1e-6 && name.starts_with("chevron-") && !name.ends_with("-small")
+        && !m_glyphs.contains(name))
         file += "-small";
     char suffix[48];
     snprintf(suffix, sizeof(suffix), "@%d#%08x", size, color.argb());
-    const std::string key = "glyph:" + file + suffix;
+    const std::string key = (center ? "centered-glyph:" : "glyph:") + file + suffix;
     if (sk_sp<SkImage> image = cached(key))
         return image;
 
@@ -531,7 +571,15 @@ sk_sp<SkImage> IconLoader::glyph(const std::string& name, int size, Color color,
             return nullptr;
         data = SkData::MakeWithoutCopy(embedded->data, embedded->size);
     }
-    sk_sp<SkImage> image = renderSvg(loadSvg(std::move(data)), size, &color);
+    auto svg = loadSvg(std::move(data));
+    PointF offset;
+    if (center) {
+        auto [entry, inserted] = m_glyphOffsets.try_emplace(file);
+        if (inserted)
+            entry->second = glyphOffset(svg);
+        offset = entry->second;
+    }
+    sk_sp<SkImage> image = renderSvg(svg, size, &color, 0, offset);
     if (image)
         store(key, image);
     return image;
@@ -1150,9 +1198,12 @@ sk_sp<SkImage> IconLoader::rasterise(const std::string& path, int size, const Co
 void IconLoader::registerGlyph(const std::string& name, std::string svg)
 {
     m_glyphs[name] = std::move(svg);
+    m_glyphOffsets.erase(name);
     // Drawings of the name made before are stale.
     for (auto it = m_images.begin(); it != m_images.end();) {
-        if (it->first.starts_with("glyph:" + name + "@")) {
+        if (it->first.starts_with("glyph:" + name + "@") || it->first.starts_with("centered-glyph:" + name + "@")
+            || it->first.starts_with("glyph:" + name + "-small@")
+            || it->first.starts_with("centered-glyph:" + name + "-small@")) {
             m_index.erase(it->first);
             it = m_images.erase(it);
         } else {

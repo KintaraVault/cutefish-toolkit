@@ -16,11 +16,6 @@ static constexpr const char* kService = "org.cutefish.Services";
 static constexpr const char* kPath = "/org/cutefish/Services/Appearance";
 static constexpr const char* kInterface = "org.cutefish.Services.Appearance";
 
-// The accents, in the order of the setting's index.
-static const Color kAccents[] = {
-    accent::blue, accent::red, accent::green, accent::purple, accent::pink, accent::orange, accent::grey,
-};
-
 AppearanceWatcher::AppearanceWatcher(base::dbus::Connection& connection)
     : m_connection(connection)
 {
@@ -152,8 +147,7 @@ void AppearanceWatcher::apply(sd_bus_message* reply)
     sd_bus_message_exit_container(reply);
 
     Theme theme = dark ? Theme::dark() : Theme::light();
-    if (accent >= 0 && accent < int(std::size(kAccents)))
-        theme.highlight = kAccents[accent];
+    theme.highlight = ui::accent::fromIndex(accent);
     theme.fontPointSize = pointSize;
     theme.fontFamily = family;
     theme.fixedFontFamily = fixedFamily;

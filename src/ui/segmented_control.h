@@ -24,6 +24,7 @@ public:
     enum class Style {
         Segmented,
         Tabs,
+        Accent, // Compact inline tabs for preferences and forms.
     };
 
     explicit SegmentedControl(std::vector<std::string> items = {}, Style style = Style::Segmented);

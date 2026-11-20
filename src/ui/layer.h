@@ -5,6 +5,7 @@
 
 #include <cstdint>
 #include <deque>
+#include <memory>
 #include <vector>
 
 #include "include/core/SkRect.h"
@@ -13,10 +14,12 @@
 #include "include/core/SkSurface.h"
 
 #include "ui/geometry.h"
+#include "ui/wallpaper_tint.h"
 
 namespace cutefish::ui {
 
 class View;
+class ColorProvider;
 
 // A layered view's texture: the view and its children painted untransformed.
 struct Layer
@@ -43,6 +46,10 @@ struct Layer
 // What changed in the window since the last presented frame.
 struct FrameDamage
 {
+    WallpaperTint wallpaperTint;
+    mutable std::shared_ptr<const ColorProvider> wallpaperPalette;
+    mutable uint64_t wallpaperThemeGeneration = 0;
+
     SkRegion pending;
     bool full = true;
     // What each of the last presented frames changed, newest first.

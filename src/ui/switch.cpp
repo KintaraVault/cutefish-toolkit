@@ -12,7 +12,7 @@
 
 namespace cutefish::ui {
 
-static constexpr SizeF kIndicator = {38, 20};
+static constexpr SizeF kIndicator = {36, 20};
 static constexpr double kHandle = 16;
 static constexpr double kHandleMargin = 2;
 
@@ -62,15 +62,18 @@ void Switch::checkedChanged(bool animated)
 void Switch::paintIndicator(Painter& painter, const RectF& rect)
 {
     painter.save();
+    const Color off = color(ColorId::SwitchTrack);
+    const Color on = isEnabled() ? color(ColorId::SwitchTrackOn) : color(ColorId::SliderTickMark);
     if (!isEnabled())
-        painter.multiplyOpacity(0.5);
-    // Plain antialiased rectangles, not snapped.
-    painter.drawSmoothRectangle(rect, rect.height / 2,
-                                mix(color(ColorId::SwitchTrack), color(ColorId::SwitchTrackOn), m_color));
+        painter.multiplyOpacity(0.55);
+    painter.drawSmoothRectangle(rect, rect.height / 2, mix(off, on, m_color));
     const double travel = rect.width - kHandle - 2 * kHandleMargin;
     const RectF handle = {rect.x + kHandleMargin + travel * m_handle,
                           rect.y + (rect.height - kHandle) / 2, kHandle, kHandle};
-    painter.drawSmoothRectangle(handle, kHandle / 2, color(ColorId::SwitchHandle));
+    if (isEnabled())
+        painter.drawShadow(handle, kHandle / 2, 0.9, Color::rgb(0).withAlpha(0.19), {0, 1});
+    painter.drawSmoothRectangle(handle, kHandle / 2, color(ColorId::SwitchHandle),
+                                0.5, Color::rgb(0).withAlpha(0.08));
     painter.restore();
 }
 

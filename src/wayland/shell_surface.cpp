@@ -11,6 +11,7 @@
 #include <cutefish-shell-v1-client-protocol.h>
 #include <cutefish-status-item-v1-client-protocol.h>
 #include <cutefish-surface-blur-v1-client-protocol.h>
+#include <cutefish-wallpaper-tint-v1-client-protocol.h>
 #include <cutefish-window-hints-v1-client-protocol.h>
 #include <cutefish-window-placement-v1-client-protocol.h>
 #include <fractional-scale-v1-client-protocol.h>
@@ -340,6 +341,16 @@ void ShellSurface::createXdgSurface()
 {
     m_xdgSurface = xdg_wm_base_get_xdg_surface(m_connection.wmBase(), m_surface);
     xdg_surface_add_listener(m_xdgSurface, &ShellSurfaceListeners::xdgSurface, this);
+    if (auto* tint = m_connection.wallpaperTint()) {
+        static constexpr cutefish_wallpaper_tint_v1_listener listener{
+            [](void* data, cutefish_wallpaper_tint_v1*, uint32_t light, uint32_t dark) {
+                static_cast<ShellSurface*>(data)->m_delegate->wallpaperTintChanged({light, dark});
+            }
+        };
+        m_wallpaperTint = cutefish_wallpaper_tint_manager_v1_get_tint(tint, m_surface);
+        if (m_wallpaperTint)
+            cutefish_wallpaper_tint_v1_add_listener(m_wallpaperTint, &listener, this);
+    }
 }
 
 ShellSurface::~ShellSurface()
@@ -365,6 +376,8 @@ ShellSurface::~ShellSurface()
         cutefish_status_item_v1_destroy(m_statusItem);
     if (m_xdgSurface)
         xdg_surface_destroy(m_xdgSurface);
+    if (m_wallpaperTint)
+        cutefish_wallpaper_tint_v1_destroy(m_wallpaperTint);
     wp_fractional_scale_v1_destroy(m_fractionalScale);
     wp_viewport_destroy(m_viewport);
     wl_surface_destroy(m_surface);

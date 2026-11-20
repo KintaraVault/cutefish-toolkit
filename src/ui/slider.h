@@ -17,6 +17,8 @@ namespace cutefish::ui {
 class Slider : public View
 {
 public:
+    // Distance from the hit area edge to the visible track at either end.
+    static constexpr double trackInset() { return 7; }
     // When the handle lands on a step.
     enum class SnapMode {
         NoSnap,

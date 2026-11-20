@@ -2,12 +2,14 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include "ui/color_provider.h"
+#include "ui/color_provider_scope.h"
 
 #include <cstdio>
 #include <memory>
 #include <utility>
 
 #include "ui/toolkit_colors.h"
+#include "ui/wallpaper_tint.h"
 
 namespace cutefish::ui {
 
@@ -49,6 +51,8 @@ static Providers& providers()
 
 const ColorProvider& ColorProvider::current()
 {
+    if (const auto* active = ColorProviderScope::active())
+        return *active;
     Providers& cached = providers();
     if (!cached.current)
         cached.current = std::make_unique<ColorProvider>(Theme::current());
@@ -83,8 +87,14 @@ void ColorProvider::addMixer(ColorMixerFunction mixer)
 }
 
 ColorProvider::ColorProvider(const Theme& theme)
+    : ColorProvider(theme, WallpaperTint::neutral)
+{
+}
+
+ColorProvider::ColorProvider(const Theme& theme, uint32_t wallpaperTone)
     : m_theme(theme)
 {
+    m_theme.background = WallpaperTint::apply(theme.background, wallpaperTone);
     const auto apply = [this](const ColorMixerFunction& function) {
         ColorMixer mixer;
         function(mixer, m_theme);
@@ -94,7 +104,9 @@ ColorProvider::ColorProvider(const Theme& theme)
             m_recipes[id] = std::move(recipe);
         }
     };
-    apply(addToolkitColors);
+    apply([base = theme.background, wallpaperTone](ColorMixer& mixer, const Theme& theme) {
+        addToolkitColors(mixer, theme, base, wallpaperTone);
+    });
     for (const ColorMixerFunction& function : mixers())
         apply(function);
     m_colors.resize(m_recipes.size());

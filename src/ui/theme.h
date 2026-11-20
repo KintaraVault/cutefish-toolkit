@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <string>
 
@@ -44,7 +45,7 @@ struct Theme
     // The compositor's window corners on large panels.
     bool continuousCorners = true;
     // The title bar controls as red, yellow and green dots instead of plates.
-    bool coloredWindowControls = false;
+    bool coloredWindowControls = true;
 
     // Points to logical pixels at the 96 dpi logical resolution.
     double fontSize() const { return fontPointSize * 4 / 3; }
@@ -71,6 +72,15 @@ inline constexpr Color purple = Color::rgb(0x8266FF);
 inline constexpr Color pink = Color::rgb(0xCA64AC);
 inline constexpr Color orange = Color::rgb(0xFEA042);
 inline constexpr Color grey = Color::rgb(0x4F596B);
+inline constexpr Color yellow = Color::rgb(0xBF8300);
+inline constexpr Color indigo = Color::rgb(0x6576BD);
+// The index is persisted by the Appearance service. Append new slots.
+inline constexpr std::array palette{blue, red, green, purple, pink, orange, grey, yellow, indigo};
+
+inline constexpr Color fromIndex(int index)
+{
+    return index >= 0 && index < int(palette.size()) ? palette[index] : blue;
+}
 } // namespace accent
 
 } // namespace cutefish::ui

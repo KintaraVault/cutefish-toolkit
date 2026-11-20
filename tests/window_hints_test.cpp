@@ -4,15 +4,20 @@
 #include <gtest/gtest.h>
 
 #include "ui/header_button.h"
+#include "ui/icon.h"
 #include "ui/layout.h"
+#include "ui/navigation_buttons.h"
 #include "ui/painter.h"
 #include "ui/path.h"
 #include "ui/scroll_bar.h"
+#include "ui/search_field.h"
 #include "ui/status_item.h"
 #include "ui/subsurface.h"
 #include "ui/test_input.h"
 #include "ui/theme.h"
+#include "ui/toolbar.h"
 #include "ui/window.h"
+#include "ui/window_controls.h"
 #include "ui/window_header.h"
 
 using namespace cutefish::ui;
@@ -88,7 +93,7 @@ TEST(WindowHintsTest, HeaderDarkModeTintsTheButtonsWhateverTheTheme)
     window.setBackgroundColor(Color::rgb(0x808080));
     window.setContentView(std::move(column));
     window.show();
-    // The plates are coloured while active; the tint shows on the inactive grey ones.
+    // Unfocused traffic lights are neutral and match the header appearance.
     TestInput::configure(window, 300, 200, {});
 
     EXPECT_EQ(window.headerDarkMode(), wasDark);
@@ -98,11 +103,35 @@ TEST(WindowHintsTest, HeaderDarkModeTintsTheButtonsWhateverTheTheme)
     window.setHeaderDarkMode(false);
     EXPECT_FALSE(window.headerDarkMode());
     const Color light = closeGlyphColor(window, 44);
-    // A lighter plate on the grey for a dark header, a darker one for a light one.
-    EXPECT_GT(dark.r, 0x90);
-    EXPECT_LT(light.r, 0x78);
+    EXPECT_LT(dark.r, 0x70);
+    EXPECT_GT(light.r, 0xc0);
+    EXPECT_LT(std::abs(int(dark.r) - int(dark.b)), 5);
+    EXPECT_LT(std::abs(int(light.r) - int(light.b)), 5);
     window.setHeaderDarkMode(std::nullopt);
     EXPECT_EQ(window.headerDarkMode(), wasDark);
+}
+
+TEST(WindowHintsTest, ToolbarGlassSeparatesRaisedButtonsAndRecessedSearch)
+{
+    Window window;
+    window.resize({180, 130});
+    window.setScale(1.5);
+    window.setHeaderDarkMode(true);
+    window.setBackgroundColor(Color::rgb(0x222222));
+    auto column = std::make_unique<Column>();
+    auto* navigation = column->addChild<NavigationButtons>();
+    navigation->setLayoutHints({.fillWidth = true});
+    auto* search = column->addChild<SearchField>();
+    search->setLayoutHints({.fillWidth = true, .minimumHeight = 30});
+    window.setContentView(std::move(column));
+    window.show();
+    const Image image = window.grab();
+    const auto sample = [&](const View& view, double x, double y) {
+        return int(image.pixel(int((view.geometry().x + x) * 1.5), int((view.geometry().y + y) * 1.5)).r);
+    };
+    EXPECT_GT(sample(*navigation, 64, 10), 0x22);
+    EXPECT_LT(sample(*search, 64, 10), 0x22);
+    EXPECT_GT(sample(*search, 64, search->geometry().height - 0.8), sample(*search, 64, 10));
 }
 
 TEST(WindowHintsTest, CenteredHeaderButtons)
@@ -117,12 +146,85 @@ TEST(WindowHintsTest, CenteredHeaderButtons)
     window.show();
     window.grab();
     // Close, minimize and maximize from the start, 9 px from it, 11 px down,
-    // 6 apart.
+    // 1 apart for the default traffic lights.
     const std::string dump = window.layoutDump();
-    EXPECT_NE(dump.find("logical 9 11 78 22"), std::string::npos) << dump;
+    EXPECT_NE(dump.find("logical 9 11 68 22"), std::string::npos) << dump;
     EXPECT_NE(dump.find("device 9 11 22 22"), std::string::npos) << dump;
-    EXPECT_NE(dump.find("device 37 11 22 22"), std::string::npos) << dump;
-    EXPECT_NE(dump.find("device 65 11 22 22"), std::string::npos) << dump;
+    EXPECT_NE(dump.find("device 32 11 22 22"), std::string::npos) << dump;
+    EXPECT_NE(dump.find("device 55 11 22 22"), std::string::npos) << dump;
+}
+
+TEST(WindowHintsTest, ToolbarGlyphsStayCentredAtFractionalScale)
+{
+    NavigationButtons navigation;
+    navigation.setGeometry({0, 0, 74, 35});
+    navigation.back()->setGlyph("chevron-left", 19);
+    navigation.forward()->setGlyph("chevron-right", 19);
+    for (const double scale : {1.0, 1.25, 1.5, 2.0}) {
+        SCOPED_TRACE(scale);
+        for (auto* button : {navigation.back(), navigation.forward()}) {
+            button->setGeometry({0, 0, 37, 35});
+            const Rect ink = TestInput::inkRect(*button, scale);
+            ASSERT_GT(ink.width, 0);
+            EXPECT_NEAR(ink.x + ink.width / 2.0, 37 * scale / 2, 1.0);
+            EXPECT_NEAR(ink.y + ink.height / 2.0, 35 * scale / 2, 1.0);
+        }
+    }
+}
+
+TEST(WindowHintsTest, ToolbarCorrectsUnevenSvgPaddingBeforeRasterizing)
+{
+    Icon::registerGlyph("offset-toolbar-test", R"(<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">
+        <rect x="8" y="10" width="5" height="3" rx="1" fill="currentColor"/></svg>)");
+    HeaderButton button;
+    button.setGlyph("offset-toolbar-test", 16);
+    button.setGeometry({0, 0, 35, 37});
+    for (const double scale : {1.0, 1.25, 1.5, 2.0}) {
+        SCOPED_TRACE(scale);
+        const Rect ink = TestInput::inkRect(button, scale);
+        ASSERT_GT(ink.width, 0);
+        EXPECT_NEAR(ink.x + ink.width / 2.0, 35 * scale / 2, 1.0);
+        EXPECT_NEAR(ink.y + ink.height / 2.0, 37 * scale / 2, 1.0);
+    }
+}
+
+TEST(WindowHintsTest, ToolbarDropdownCentresGlyphAndChevronTogether)
+{
+    Window window;
+    auto column = std::make_unique<Column>();
+    auto* toolbar = column->addChild<Toolbar>();
+    toolbar->setName("toolbar");
+    toolbar->setItems({{"group", "Group", "view-group", 43, {}, {}, true}});
+    toolbar->setOrder({"group"});
+    toolbar->setLayoutHints({.preferredHeight = 40});
+    window.resize({180, 80});
+    window.setContentView(std::move(column));
+    window.show();
+    window.grab();
+    auto* item = toolbar->itemView("group");
+    ASSERT_TRUE(item);
+    ASSERT_GE(item->children().size(), 2u);
+    const RectF glyph = item->children()[0]->geometry();
+    const RectF chevron = item->children()[1]->geometry();
+    EXPECT_EQ(glyph.x, item->geometry().width - chevron.right());
+    EXPECT_EQ(chevron.x - glyph.right(), 2);
+    EXPECT_EQ(glyph.y + glyph.height / 2, 20);
+    EXPECT_EQ(chevron.y + chevron.height / 2, 20);
+}
+
+TEST(WindowHintsTest, TrafficLightHasDyedGlassAndASoftContactShadow)
+{
+    auto state = window_controls::State{.artwork = "close", .colored = true, .active = true};
+    const Bitmap active = window_controls::render(state, 2);
+    ASSERT_FALSE(active.isNull());
+    const int mid = active.width() / 2;
+    const auto green = [](uint32_t argb) { return (argb >> 8) & 0xff; };
+    EXPECT_GT(green(active.pixel(mid, mid + 7)), green(active.pixel(mid, mid - 7)) + 12);
+    EXPECT_GT(active.alpha(mid, mid + 15), active.alpha(mid, mid - 16));
+    state.active = false;
+    state.dark = true;
+    const uint32_t neutral = window_controls::render(state, 2).pixel(mid, mid);
+    EXPECT_NEAR(int(green(neutral)), int((neutral >> 16) & 0xff), 2);
 }
 
 TEST(WindowHintsTest, WindowControlPlatesHoverOneAtATime)
@@ -130,6 +232,10 @@ TEST(WindowHintsTest, WindowControlPlatesHoverOneAtATime)
     Window window;
     auto column = std::make_unique<Column>();
     WindowHeader* header = column->addChild<WindowHeader>(44);
+    Theme legacy = Theme::current();
+    legacy.coloredWindowControls = false;
+    const Theme saved = Theme::current();
+    Theme::setCurrent(legacy);
     header->setButtonsCentered(true);
     header->setLayoutHints({.fillWidth = true});
     window.resize({300, 200});
@@ -148,6 +254,7 @@ TEST(WindowHintsTest, WindowControlPlatesHoverOneAtATime)
     // The gap between them hovers neither.
     TestInput::movePointer(window, {34, 22});
     EXPECT_EQ(plates(), std::pair(closeRest, minimizeRest));
+    Theme::setCurrent(saved);
 }
 
 TEST(WindowHintsTest, ColoredWindowControlGlyphsShowAcrossTheWholeRow)
@@ -164,11 +271,10 @@ TEST(WindowHintsTest, ColoredWindowControlGlyphsShowAcrossTheWholeRow)
     window.resize({300, 200});
     window.setContentView(std::move(column));
     window.show();
-    // Where the close and minimize glyphs ink: the close plate's middle, and
-    // the minimize line, which sits a little above its plate's middle.
+    // Both glyphs sit in the middle of their plate.
     const auto centres = [&] {
         const Image image = window.grab();
-        return std::pair{int(image.pixel(20, 22).r), int(image.pixel(43, 21).r)};
+        return std::pair{int(image.pixel(20, 22).r), int(image.pixel(43, 22).r)};
     };
     const auto [closeRest, minimizeRest] = centres();
     // The gap between close and minimize, over minimize, and over maximize.

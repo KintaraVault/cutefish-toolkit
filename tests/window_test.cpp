@@ -10,11 +10,13 @@
 
 #include "base/event_loop.h"
 #include "ui/application.h"
+#include "ui/color_provider.h"
 #include "ui/dialog_window.h"
 #include "ui/keys.h"
 #include "ui/label.h"
 #include "ui/layout.h"
 #include "ui/menu.h"
+#include "ui/painter.h"
 #include "ui/test_input.h"
 #include "ui/text_field.h"
 #include "ui/theme.h"
@@ -24,6 +26,41 @@
 #include "ui/window_tab_bar.h"
 
 using namespace cutefish::ui;
+
+TEST(WindowTest, WallpaperTintOnlyChangesTheWindowsMaterialColors)
+{
+    class Swatches final : public View {
+        void paint(Painter& painter) override
+        {
+            painter.fillRect({0, 0, 20, 20}, color(ColorId::DocumentBackground));
+            painter.fillRect({20, 0, 20, 20}, color(ColorId::Highlight));
+            painter.fillRect({40, 0, 20, 20}, color(ColorId::PanelBackground));
+        }
+    };
+    const Theme original = Theme::current();
+    Window tinted;
+    Window other;
+    for (auto* window : {&tinted, &other}) {
+        window->resize({80, 40});
+        window->setContentView(std::make_unique<Swatches>());
+    }
+    const auto tint = WallpaperTint::fromSample(80, 115, 230);
+    tinted.setWallpaperTint(tint);
+    for (const Theme theme : {Theme::light(), Theme::dark()}) {
+        Theme::setCurrent(theme);
+        const uint32_t tone = tint.forMode(theme.darkMode);
+        const Image image = tinted.grab();
+        EXPECT_EQ(image.pixel(70, 10), WallpaperTint::apply(theme.background, tone));
+        EXPECT_EQ(image.pixel(10, 10), theme.background);
+        EXPECT_EQ(image.pixel(30, 10), theme.highlight);
+        EXPECT_EQ(image.pixel(50, 10), WallpaperTint::apply(theme.secondBackground, tone));
+        EXPECT_EQ(other.grab().pixel(70, 10), theme.background);
+        EXPECT_EQ(Theme::current().background, theme.background);
+    }
+    tinted.setWallpaperTint({});
+    EXPECT_EQ(tinted.grab().pixel(70, 10), Theme::current().background);
+    Theme::setCurrent(original);
+}
 
 TEST(WindowTest, HeaderDoubleClickTogglesMaximized)
 {

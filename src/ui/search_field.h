@@ -19,11 +19,11 @@ class SearchField : public TextField
 public:
     explicit SearchField(std::string placeholder = {});
 
-    // The pill's colour; the theme's second background unless set.
+    // An optional colour under the recessed glass material.
     void setFill(std::optional<ColorRecipe> fill);
     // The glyphs' distance from the ends, the gap between a glyph and the
     // text, and how far the clear button's hit area reaches past its glyph.
-    // 12, 8 and 7 unless set.
+    // 10, 6 and 7 unless set.
     void setIconMetrics(double inset, double gap, double hitMargin);
     // The search and clear glyphs in this colour; the theme's text unless set.
     void setGlyphColor(std::optional<ColorRecipe> color);
@@ -39,8 +39,8 @@ private:
     void updateMargins();
 
     std::optional<ColorRecipe> m_fill;
-    double m_inset = 12;
-    double m_gap = 8;
+    double m_inset = 10;
+    double m_gap = 6;
     double m_hitMargin = 7;
     Icon* m_search;
     ClearButton* m_clear;

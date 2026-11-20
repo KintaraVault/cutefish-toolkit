@@ -4,6 +4,7 @@
 #include "ui/toolkit_colors.h"
 
 #include "ui/theme.h"
+#include "ui/wallpaper_tint.h"
 
 namespace cutefish::ui {
 
@@ -11,12 +12,15 @@ static constexpr Color kWhite = Color::rgb(0xFFFFFF);
 static constexpr Color kBlack = Color::rgb(0x000000);
 static constexpr Color kTransparent = Color{0, 0, 0, 0};
 
-void addToolkitColors(ColorMixer& mixer, const Theme& theme)
+void addToolkitColors(ColorMixer& mixer, const Theme& theme, Color documentBackground, uint32_t wallpaperTone)
 {
     const bool dark = theme.darkMode;
 
     mixer[ColorId::Background] = theme.background;
+    mixer[ColorId::DocumentBackground] = documentBackground;
     mixer[ColorId::SecondBackground] = theme.secondBackground;
+    mixer[ColorId::PanelBackground] = WallpaperTint::apply(theme.secondBackground, wallpaperTone);
+    mixer[ColorId::WallpaperTone] = Color::rgb(wallpaperTone);
     mixer[ColorId::AlternateBackground] = theme.alternateBackground;
     mixer[ColorId::Text] = theme.text;
     mixer[ColorId::DisabledText] = theme.disabledText;
@@ -84,7 +88,8 @@ void addToolkitColors(ColorMixer& mixer, const Theme& theme)
 
     mixer[ColorId::HeaderButtonTint] = dark ? kWhite : Color::rgb(0x323238);
 
-    mixer[ColorId::AlertBackground] = dark ? ColorRecipe(Color::rgb(0x343434)) : ColorRecipe(ColorId::SecondBackground);
+    mixer[ColorId::AlertBackground] = dark ? ColorRecipe(WallpaperTint::apply(Color::rgb(0x343434), wallpaperTone))
+                                          : ColorRecipe(ColorId::PanelBackground);
     mixer[ColorId::AlertText] = (dark ? kWhite : kBlack).withAlpha(0.847);
     // Flat fills with no edge: white in dark mode and black in light.
     mixer[ColorId::DialogButtonBackground] = (dark ? kWhite : kBlack).withAlpha(0.0756);

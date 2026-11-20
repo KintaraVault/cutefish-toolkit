@@ -15,6 +15,7 @@
 
 struct cutefish_main_menu_manager_v1;
 struct cutefish_surface_blur_v1;
+struct cutefish_wallpaper_tint_manager_v1;
 struct cutefish_shell_v1;
 struct cutefish_status_item_manager_v1;
 struct cutefish_window_hints_v1;
@@ -109,6 +110,7 @@ public:
     // Null unless the compositor lets this client place its own windows.
     cutefish_window_placement_v1* windowPlacement() const { return m_windowPlacement; }
     cutefish_surface_blur_v1* surfaceBlur() const { return m_surfaceBlur; }
+    cutefish_wallpaper_tint_manager_v1* wallpaperTint() const { return m_wallpaperTint; }
     // Null when the compositor has no menu bar items.
     cutefish_status_item_manager_v1* statusItems() const { return m_statusItems; }
     // Null when the compositor shows no main menus.
@@ -213,6 +215,7 @@ private:
     cutefish_window_hints_v1* m_windowHints = nullptr;
     cutefish_window_placement_v1* m_windowPlacement = nullptr;
     cutefish_surface_blur_v1* m_surfaceBlur = nullptr;
+    cutefish_wallpaper_tint_manager_v1* m_wallpaperTint = nullptr;
     cutefish_status_item_manager_v1* m_statusItems = nullptr;
     cutefish_main_menu_manager_v1* m_mainMenus = nullptr;
     std::map<Menu*, std::weak_ptr<MainMenuMirror>> m_mainMenuMirrors;

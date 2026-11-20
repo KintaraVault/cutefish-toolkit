@@ -4,14 +4,17 @@
 #include "ui/color_provider.h"
 #include "ui/search_field.h"
 
+#include <algorithm>
+
 #include "ui/icon.h"
 #include "ui/painter.h"
 #include "ui/theme.h"
+#include "ui/toolbar_surface.h"
+#include "ui/window.h"
 
 namespace cutefish::ui {
 
 static constexpr double kGlyphSize = 14;
-static constexpr double kFocusRing = 2;
 
 // A press area over the glyph: it takes the press, and the click clears.
 class SearchField::ClearButton : public Icon
@@ -47,6 +50,8 @@ SearchField::SearchField(std::string placeholder)
 {
     setPlaceholder(std::move(placeholder));
     setFrameVisible(false);
+    m_search->setInkCentered(true);
+    m_clear->setInkCentered(true);
     m_clear->setVisible(false);
     updateMargins();
 }
@@ -78,15 +83,11 @@ void SearchField::paint(Painter& painter)
 {
     const Theme& theme = Theme::current();
     const RectF bounds = localRect();
-    const Color fill = m_fill ? m_fill->resolve() : theme.secondBackground;
-    const double radius = bounds.height / 2;
-    const bool focused = hasFocus();
-    painter.drawRoundedRect(bounds, {radius, 0, Corners::Circular}, fill, 1, focused ? theme.highlight : fill);
-    if (focused) {
-        painter.drawRoundedRect(bounds.adjusted(-kFocusRing, -kFocusRing, kFocusRing, kFocusRing),
-                                {radius, -kFocusRing, Corners::Circular}, Color{0, 0, 0, 0}, 2,
-                                color(ColorId::TextFieldFocusRing));
-    }
+    const bool dark = window() ? window()->headerDarkMode() : theme.darkMode;
+    toolbar_surface::searchField(painter, bounds, dark,
+                                 m_fill ? std::optional(m_fill->resolve()) : std::nullopt);
+    if (hasFocus())
+        toolbar_surface::searchFocus(painter, bounds, theme.highlight);
     TextField::paint(painter);
 }
 
@@ -94,9 +95,11 @@ void SearchField::layout()
 {
     const RectF bounds = localRect();
     const double top = (bounds.height - kGlyphSize) / 2;
+    const double hitX = std::min(m_inset, m_hitMargin);
+    const double hitY = std::clamp(top, 0.0, m_hitMargin);
     m_search->setGeometry({m_inset, top, kGlyphSize, kGlyphSize});
-    m_clear->setGeometry({bounds.width - m_inset - kGlyphSize - m_hitMargin, top - m_hitMargin,
-                          kGlyphSize + 2 * m_hitMargin, kGlyphSize + 2 * m_hitMargin});
+    m_clear->setGeometry({bounds.width - m_inset - kGlyphSize - hitX, top - hitY,
+                          kGlyphSize + 2 * hitX, kGlyphSize + 2 * hitY});
 }
 
 void SearchField::textChanged()

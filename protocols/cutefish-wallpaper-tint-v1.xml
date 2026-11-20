@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<protocol name="cutefish_wallpaper_tint_v1">
+  <interface name="cutefish_wallpaper_tint_manager_v1" version="1">
+    <description summary="appearance of desktop-tinted window materials">
+      Provides the local desktop tone for a client's own surface. This is not
+      the composited backdrop and never includes intervening windows.
+    </description>
+    <enum name="error">
+      <entry name="already_exists" value="0" summary="the surface already has a tint object"/>
+    </enum>
+    <request name="destroy" type="destructor"/>
+    <request name="get_tint">
+      <description summary="listen for the tone of a surface">
+        Only one tint object may be active per surface. After the surface is
+        destroyed, this object is inert and the client must destroy it.
+      </description>
+      <arg name="id" type="new_id" interface="cutefish_wallpaper_tint_v1"/>
+      <arg name="surface" type="object" interface="wl_surface"/>
+    </request>
+  </interface>
+  <interface name="cutefish_wallpaper_tint_v1" version="1">
+    <request name="destroy" type="destructor"/>
+    <event name="tone">
+      <description summary="light and dark window tones">
+        The compositor sends the initial values and updates when they change.
+        Each uint holds three sRGB channel offsets in 0xRRGGBB order, biased
+        by 128. 0x808080 leaves the base material unchanged. Paint the offsets
+        into semantic background materials, not into the finished window.
+      </description>
+      <arg name="light" type="uint"/>
+      <arg name="dark" type="uint"/>
+    </event>
+  </interface>
+</protocol>

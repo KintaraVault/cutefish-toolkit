@@ -48,6 +48,8 @@ cutefish_wayland_protocol(cutefish-window-hints-v1
     ${PROJECT_SOURCE_DIR}/protocols/cutefish-window-hints-v1.xml)
 cutefish_wayland_protocol(cutefish-surface-blur-v1
     ${PROJECT_SOURCE_DIR}/protocols/cutefish-surface-blur-v1.xml)
+cutefish_wayland_protocol(cutefish-wallpaper-tint-v1
+    ${PROJECT_SOURCE_DIR}/protocols/cutefish-wallpaper-tint-v1.xml)
 cutefish_wayland_protocol(cutefish-shell-v1
     ${PROJECT_SOURCE_DIR}/protocols/cutefish-shell-v1.xml)
 cutefish_wayland_protocol(cutefish-main-menu-v1
@@ -107,6 +109,7 @@ set(CUTEFISH_TOOLKIT_PUBLIC_HEADERS
     ui/menu.h
     ui/navigation_buttons.h
     ui/toolbar.h
+    ui/toolbar_surface.h
     ui/painter.h
     ui/path.h
     ui/popup_glass.h
@@ -131,6 +134,7 @@ set(CUTEFISH_TOOLKIT_PUBLIC_HEADERS
     ui/text_field.h
     ui/text_layout.h
     ui/theme.h
+    ui/wallpaper_tint.h
     ui/toast.h
     ui/trusted_connection.h
     ui/toggle_control.h
@@ -200,6 +204,7 @@ add_library(cutefish-toolkit SHARED
     ui/menu.cpp
     ui/navigation_buttons.cpp
     ui/toolbar.cpp
+    ui/toolbar_surface.cpp
     ui/multi_effect_blur.cpp
     ui/painter.cpp
     ui/raster_image.cpp
@@ -268,6 +273,7 @@ add_library(cutefish-toolkit SHARED
     ${tablet-unstable-v2_SOURCES}
     ${cutefish-window-hints-v1_SOURCES}
     ${cutefish-surface-blur-v1_SOURCES}
+    ${cutefish-wallpaper-tint-v1_SOURCES}
     ${cutefish-shell-v1_SOURCES}
     ${cutefish-main-menu-v1_SOURCES}
     ${cutefish-status-item-v1_SOURCES}

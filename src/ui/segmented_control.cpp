@@ -23,6 +23,7 @@ namespace cutefish::ui {
 // tab button high, a medium icon and a small spacing, without padding.
 static constexpr double kSegmentedHeight = 32;
 static constexpr double kTabHeight = 38;
+static constexpr double kAccentHeight = 23;
 static constexpr double kSegmentedPadding = 2;
 static constexpr double kPlateInset = 2;
 static constexpr std::chrono::milliseconds kPressDelay{50};
@@ -41,6 +42,7 @@ public:
         setName(m_label->text());
         setToolTip(m_label->text());
         m_icon = addChild<Icon>(std::string(), 16);
+        m_icon->setInkCentered(true);
         m_icon->setVisible(false);
     }
 
@@ -63,9 +65,12 @@ protected:
     {
         const RectF box = localRect();
         const bool stacked = m_icon->isVisible() && m_label->isVisible();
-        const double size = m_control->m_toolbarAppearance ? 20 : 16;
-        m_icon->setGeometry({(box.width - size) / 2, stacked ? 1.0 : (box.height - size) / 2, size, size});
-        m_label->setGeometry(stacked ? RectF {0, 17, box.width, box.height - 17} : box);
+        const double labelHeight = stacked ? std::min(m_label->sizeHint().height, box.height / 2) : 0;
+        const double iconHeight = box.height - labelHeight;
+        const double size = std::min(m_control->m_toolbarAppearance ? 20.0 : 16.0, iconHeight);
+        m_icon->setSize(size);
+        m_icon->setGeometry({(box.width - size) / 2, (iconHeight - size) / 2, size, size});
+        m_label->setGeometry(stacked ? RectF {0, iconHeight, box.width, labelHeight} : box);
     }
 
     bool keyPress(const KeyEvent& event) override
@@ -107,7 +112,8 @@ private:
 
 SegmentedControl::SegmentedControl(std::vector<std::string> items, Style style)
     : m_style(style)
-    , m_contentHeight(style == Style::Segmented ? kSegmentedHeight : kTabHeight)
+    , m_contentHeight(style == Style::Accent ? kAccentHeight :
+                      style == Style::Segmented ? kSegmentedHeight : kTabHeight)
 {
     setItems(std::move(items));
 }
@@ -140,6 +146,7 @@ void SegmentedControl::setCurrentIndex(int index)
     if (index < 0 || index >= int(m_segments.size()) || index == m_current)
         return;
     m_current = index;
+    updateColors();
     requestPaint();
 }
 
@@ -255,6 +262,22 @@ void SegmentedControl::paint(Painter& painter)
 {
     const Theme& theme = Theme::current();
     const RectF bounds = localRect();
+    if (m_style == Style::Accent) {
+        painter.drawRoundedRect(bounds, {6}, m_trackColor ? m_trackColor->resolve()
+                                                         : theme.text.withAlpha(theme.darkMode ? 0.14 : 0.08));
+        if (m_current >= 0 && m_current < int(m_segments.size())) {
+            const Color fill = !isEnabled() ? color(ColorId::SliderTickMark)
+                : m_pressed == m_current && m_pressShown ? darker(ColorId::Highlight, 1.12).resolve()
+                                                         : color(ColorId::Highlight);
+            painter.drawRoundedRect(itemRect(size_t(m_current)), {6}, fill);
+        }
+        for (size_t i = 0; i < m_segments.size(); ++i) {
+            if (m_segments[i]->hasVisibleFocus())
+                painter.drawRoundedRect(itemRect(i).shrunk(Margins::all(1)), {5}, Color{0, 0, 0, 0}, 1.5,
+                                        color(int(i) == m_current ? ColorId::HighlightedText : ColorId::Highlight));
+        }
+        return;
+    }
     if (m_toolbarAppearance && m_style == Style::Segmented) {
         toolbar_surface::capsule(painter, trackRect(), theme.darkMode);
         for (size_t i = 0; i < m_segments.size(); ++i) {
@@ -331,6 +354,8 @@ void SegmentedControl::updateColors()
         Label* label = m_segments[i]->label();
         if (!isEnabled())
             label->setColor(ColorId::DisabledText);
+        else if (m_style == Style::Accent && int(i) == m_current)
+            label->setColor(ColorId::HighlightedText);
         else if (int(i) == m_pressed && m_pressShown)
             label->setColor(ColorId::SegmentedControlTextPressed);
         else
@@ -356,9 +381,12 @@ void SegmentedControl::setPressed(int index)
             m_pressTimer = 0;
             m_pressShown = true;
             updateColors();
+            requestPaint();
         });
     }
     updateColors();
+    if (m_style == Style::Accent)
+        requestPaint();
 }
 
 void SegmentedControl::pick(int index)
@@ -366,6 +394,7 @@ void SegmentedControl::pick(int index)
     if (index < 0 || index >= int(m_segments.size()) || index == m_current)
         return;
     m_current = index;
+    updateColors();
     requestPaint();
     if (onCurrentChanged)
         onCurrentChanged(index);

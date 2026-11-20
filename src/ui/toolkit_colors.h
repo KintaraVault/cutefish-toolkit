@@ -8,6 +8,6 @@
 namespace cutefish::ui {
 
 // The toolkit's recipes, which every provider starts from.
-void addToolkitColors(ColorMixer& mixer, const Theme& theme);
+void addToolkitColors(ColorMixer& mixer, const Theme& theme, Color documentBackground, uint32_t wallpaperTone);
 
 } // namespace cutefish::ui

@@ -178,6 +178,14 @@ Rect Painter::snappedRect(const RectF& rect) const
     return {x, y, width, height};
 }
 
+Rect Painter::centeredSquare(const RectF& bounds, double size) const
+{
+    const int side = std::max(1, int(std::lround(size * m_scale)));
+    const double x = (m_offset.x + bounds.x + bounds.width / 2) * m_scale - side / 2.0;
+    const double y = (m_offset.y + bounds.y + bounds.height / 2) * m_scale - side / 2.0;
+    return {int(std::floor(x + 0.5)), int(std::floor(y + 0.5)), side, side};
+}
+
 static SkColor4f premultiplied(Color color, double opacity)
 {
     const float a = float(color.a / 255.0 * opacity);

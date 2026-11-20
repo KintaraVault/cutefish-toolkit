@@ -19,6 +19,9 @@ namespace window_controls {
 inline constexpr double kButton = 22;
 inline constexpr double kSpacing = 6;
 inline constexpr double kColoredSpacing = 1;
+// The Golden Gate default is traffic lights. A separate key keeps the old
+// plate-based default from silently overriding it on existing installations.
+inline constexpr char kColoredPreference[] = "TrafficLightWindowControls";
 // Room around a control's square for a plate's shadow.
 inline constexpr double kShadowMargin = 5;
 // A dialog's lone close control sits as far from the top as from the start,

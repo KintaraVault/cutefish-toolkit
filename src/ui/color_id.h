@@ -114,6 +114,12 @@ enum class ColorId : uint16_t {
     ToolTipShadow,
     ToastShadow,
 
+    // An opaque secondary window/sheet, not the neutral document/control fill.
+    PanelBackground,
+    // Neutral primary background for a document canvas.
+    DocumentBackground,
+    // Internal recipe input: packed desktop tone, not a paint colour.
+    WallpaperTone,
     ToolkitEnd,
 
     ApplicationFirst = 1024,

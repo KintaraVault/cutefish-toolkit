@@ -2,12 +2,20 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include "ui/color_mixer.h"
+#include "ui/wallpaper_tint.h"
 
 #include <utility>
 
 #include "ui/color_provider.h"
 
 namespace cutefish::ui {
+
+ColorRecipe wallpaperTinted(Color base)
+{
+    return ColorRecipe([base](const ColorProvider& provider) {
+        return WallpaperTint::apply(base, provider.get(ColorId::WallpaperTone).argb());
+    });
+}
 
 ColorRecipe::ColorRecipe(Color color)
     : m_make([color](const ColorProvider&) { return color; })

@@ -5,15 +5,16 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <utility>
 #include <vector>
 
 #include "include/core/SkBitmap.h"
 #include "include/core/SkCanvas.h"
 #include "include/core/SkImage.h"
+#include "include/effects/SkRuntimeEffect.h"
 
 #include "ui/bitmap_private.h"
-#include "ui/color_provider.h"
 #include "ui/icon_loader.h"
 #include "ui/painter.h"
 #include "ui/path.h"
@@ -21,8 +22,8 @@
 namespace cutefish::ui::window_controls {
 
 static constexpr double kColoredPlate = 14;
+static constexpr double kTrafficGlyph = 10;
 static constexpr double kArtwork = 14;
-static constexpr double kRim = 0.5;
 
 // The shadow, the glyph and the coloured dot keep their proportions to a
 // control's side.
@@ -138,47 +139,120 @@ static void paintPlate(Painter& painter, const RectF& bounds, const State& state
         painter.drawImage(image.get(), device.x, device.y);
     } else if (!state.artwork.empty()) {
         const double artwork = scaled(kArtwork, side);
-        const Rect icon = painter.snappedRect({bounds.x + std::round((bounds.width - artwork) / 2),
-                                               bounds.y + std::round((bounds.height - artwork) / 2), artwork,
-                                               artwork});
-        sk_sp<SkImage> image = IconLoader::instance().glyph("window-control-" + state.artwork, icon.width, ink);
+        const Rect icon = painter.centeredSquare(bounds, artwork);
+        sk_sp<SkImage> image = IconLoader::instance().centeredGlyph("window-control-" + state.artwork, icon.width, ink);
         painter.drawImage(image.get(), icon.x, icon.y);
     }
     painter.restore();
 }
 
+static constexpr char kTrafficLightShader[] = R"(
+uniform float2 centre;
+uniform float radius;
+uniform float scale;
+layout(color) uniform half4 topColor;
+layout(color) uniform half4 bottomColor;
+uniform float pressed;
+uniform float darkMode;
+uniform float colored;
+
+half4 main(float2 xy)
+{
+    float2 p = xy - centre;
+    float radial = length(p);
+    float depth = (radius - radial) / scale;
+    float coverage = clamp(0.5 + depth * scale, 0.0, 1.0);
+    float2 normal = p / max(radial, 0.001);
+    float up = max(-normal.y, 0.0);
+    float down = max(normal.y, 0.0);
+    float side = abs(normal.x);
+    float rim = 1.0 - smoothstep(0.08, 1.00, depth);
+    float bevel = smoothstep(0.28, 0.88, depth) * (1.0 - smoothstep(0.88, 1.70, depth));
+    float y = clamp(0.5 + p.y / (2.0 * radius), 0.0, 1.0);
+
+    // The dyed body scatters light toward the lower half. Its darker contour
+    // pinches in at the sides; a short specular arc follows the upper rim.
+    half3 body = mix(topColor.rgb, bottomColor.rgb, half(smoothstep(0.09, 0.91, y)));
+    float absorption = rim * (0.11 + 0.26 * side * side + 0.05 * down);
+    float neutralDark = darkMode * (1.0 - colored);
+    absorption *= 1.0 - 0.62 * neutralDark;
+    body = mix(body, half3(0.0), half(absorption + pressed * 0.15));
+    float crown = up * up * up;
+    float heel = down * down;
+    float reflection = bevel * (0.035 * crown + 0.07 * heel)
+        + rim * (0.075 * crown + 0.026 * heel)
+        + neutralDark * (rim * 0.12 * crown + bevel * 0.11 * heel);
+    body = mix(body, half3(1.0), half(reflection * (1.0 - pressed * 0.40)));
+
+    // Small contact shadow under the lens, not the toolbar capsule's fill.
+    float shadowDepth = (length(p - float2(0.0, scale * 0.48)) - radius) / scale;
+    float shadow = (1.0 - smoothstep(-0.3, 1.55, shadowDepth)) * (0.12 + darkMode * 0.08);
+    return half4(body * half(coverage), half(coverage + shadow * (1.0 - coverage)));
+}
+)";
+
+static void paintTrafficLens(Painter& painter, const Rect& plate, Color top, Color bottom, const State& state,
+                             bool colored)
+{
+    static const sk_sp<SkRuntimeEffect> effect = [] {
+        auto result = SkRuntimeEffect::MakeForShader(SkString(kTrafficLightShader));
+        if (!result.effect)
+            std::fprintf(stderr, "cutefish-toolkit: traffic light: %s\n", result.errorText.c_str());
+        return result.effect;
+    }();
+    const float radius = plate.width * 0.5f;
+    sk_sp<SkShader> shader;
+    if (effect) {
+        const auto rgba = [](Color c) { return SkColor4f{c.r / 255.f, c.g / 255.f, c.b / 255.f, 1}; };
+        SkRuntimeShaderBuilder builder(effect);
+        builder.uniform("centre") = SkV2{plate.x + radius, plate.y + radius};
+        builder.uniform("radius") = radius;
+        builder.uniform("scale") = float(painter.scale());
+        builder.uniform("topColor") = rgba(top);
+        builder.uniform("bottomColor") = rgba(bottom);
+        builder.uniform("pressed") = state.pressed ? 1.0f : 0.0f;
+        builder.uniform("darkMode") = state.dark ? 1.0f : 0.0f;
+        builder.uniform("colored") = colored ? 1.0f : 0.0f;
+        shader = builder.makeShader();
+    }
+    if (!shader) {
+        painter.fillDeviceRoundedRect(plate, radius, top);
+        painter.strokeDeviceRoundedRect(plate, radius, Color::rgb(0).withAlpha(0.14), 1);
+        return;
+    }
+    SkPaint paint;
+    paint.setShader(std::move(shader));
+    paint.setAlphaf(float(painter.opacity()));
+    const int reach = int(std::ceil(2.1 * painter.scale()));
+    auto area = SkIRect::MakeXYWH(plate.x, plate.y, plate.width, plate.height);
+    area.outset(reach, reach);
+    painter.canvas()->drawIRect(area, paint);
+}
+
 static void paintColored(Painter& painter, const RectF& bounds, const State& state)
 {
-    const Color tint = ColorProvider::forMode(state.dark).get(ColorId::HeaderButtonTint);
-    const auto centred = [&](double side) {
-        return painter.snappedRect({bounds.x + std::round((bounds.width - side) / 2),
-                                    bounds.y + std::round((bounds.height - side) / 2), side, side});
-    };
     const double side = sideOf(bounds);
-    const Rect plate = centred(scaled(kColoredPlate, side));
-    // Coloured while the window is active or the pointer is on the row, grey
-    // otherwise.
-    Color fill = tint.withAlpha((state.dark ? 0.30 : 0.20) + (state.pressed ? 0.12 : 0));
-    Color ink = tint;
-    if ((state.active || state.hovered || state.pressed) && state.enabled) {
-        const Color base = state.artwork == "close" ? Color::rgb(0xEE5A6A)
-                : state.artwork == "minimize" ? Color::rgb(0xF4B63F)
-                                              : Color::rgb(0x3CC68A);
-        fill = state.pressed ? Color{uint8_t(base.r * 0.8), uint8_t(base.g * 0.8), uint8_t(base.b * 0.8), 255}
-                             : base;
-        ink = Color::rgb(0x000000).withAlpha(0.6);
+    const Rect plate = painter.centeredSquare(bounds, scaled(kColoredPlate, side));
+    const bool colored = (state.active || state.hovered || state.pressed) && state.enabled;
+    uint32_t top = state.dark ? 0x555455 : 0xcfcecd;
+    uint32_t bottom = state.dark ? 0x494849 : 0xe1dfde;
+    if (colored && state.artwork == "close") {
+        top = 0xfd6c62;
+        bottom = 0xf38a82;
+    } else if (colored && state.artwork == "minimize") {
+        top = 0xfbb825;
+        bottom = 0xfed343;
+    } else if (colored) {
+        top = 0x5ace28;
+        bottom = 0x98d975;
     }
-    painter.save();
-    painter.multiplyOpacity(state.enabled ? 1.0 : 0.35);
-    painter.fillDeviceRoundedRect(plate, plate.width / 2.0, fill);
-    painter.strokeDeviceRoundedRect(plate, plate.width / 2.0, Color::rgb(0x000000).withAlpha(0.12),
-                                    kRim * painter.scale());
+    paintTrafficLens(painter, plate, Color::rgb(top), Color::rgb(bottom), state, colored);
     if (state.enabled && !state.artwork.empty() && (state.hovered || state.pressed)) {
-        const Rect icon = centred(scaled(kArtwork, side));
-        sk_sp<SkImage> image = IconLoader::instance().glyph("window-control-" + state.artwork, icon.width, ink);
+        const Rect icon = painter.centeredSquare(bounds, scaled(kTrafficGlyph, side));
+        sk_sp<SkImage> image = IconLoader::instance().centeredGlyph("window-control-" + state.artwork, icon.width,
+                                                           Color::rgb(0).withAlpha(0.72));
         painter.drawImage(image.get(), icon.x, icon.y);
     }
-    painter.restore();
 }
 
 void paint(Painter& painter, const RectF& bounds, const State& state)

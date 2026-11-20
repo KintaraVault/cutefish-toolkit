@@ -21,6 +21,8 @@
 
 #include "base/event_loop.h"
 #include "ui/application.h"
+#include "ui/color_provider.h"
+#include "ui/color_provider_scope.h"
 #include "ui/bitmap.h"
 #include "ui/drag.h"
 #include "ui/embedded_platform_window.h"
@@ -434,6 +436,37 @@ void Window::setBackgroundColor(std::optional<ColorRecipe> color)
 {
     m_backgroundColor = std::move(color);
     requestPaint();
+}
+
+void Window::setWallpaperTint(WallpaperTint tint)
+{
+    auto& frame = *m_frameDamage;
+    if (frame.wallpaperTint == tint)
+        return;
+    const bool dark = Theme::current().darkMode;
+    const bool changed = frame.wallpaperTint.forMode(dark) != tint.forMode(dark);
+    frame.wallpaperTint = tint;
+    if (changed) {
+        frame.wallpaperPalette.reset();
+        damageAll();
+    }
+}
+
+std::shared_ptr<const ColorProvider> Window::wallpaperPalette() const
+{
+    // A nested paint/layout must start from the system palette, not the
+    // window which triggered it.
+    const ColorProviderScope system(nullptr);
+    const Theme& theme = Theme::current();
+    auto& frame = *m_frameDamage;
+    const uint32_t tone = frame.wallpaperTint.forMode(theme.darkMode);
+    if (tone == WallpaperTint::neutral)
+        return {};
+    if (!frame.wallpaperPalette || frame.wallpaperThemeGeneration != Theme::generation()) {
+        frame.wallpaperPalette.reset(new ColorProvider(theme, tone));
+        frame.wallpaperThemeGeneration = Theme::generation();
+    }
+    return frame.wallpaperPalette;
 }
 
 Color Window::backgroundColor() const
@@ -1838,6 +1871,8 @@ bool Window::layoutIfNeeded()
 {
     if (!m_layoutNeeded || !m_contentView)
         return false;
+    const auto palette = wallpaperPalette();
+    const ColorProviderScope colors(palette.get());
     fitContentHeight();
     SizeF laidOut = m_size;
     m_contentView->setGeometry({0, 0, m_size.width, m_size.height});

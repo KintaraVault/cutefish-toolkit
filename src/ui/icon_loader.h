@@ -29,6 +29,7 @@ public:
     // size; the scale tells its logical size, which picks the heavier
     // -small chevrons at 12 and below.
     sk_sp<SkImage> glyph(const std::string& name, int size, Color color, double scale = 1);
+    sk_sp<SkImage> centeredGlyph(const std::string& name, int size, Color color, double scale = 1);
     // An icon of the theme, its parents or hicolor, for an item of the
     // logical size at the scale: the file the lookup picks, at the device
     // size, a smaller picture stretched as an item stretches it; null when
@@ -127,6 +128,8 @@ private:
     static sk_sp<SkImage> rasterise(const std::string& path, int size, const Color* tint,
                                     const std::string& plate = {});
     std::unordered_map<std::string, std::string> m_glyphs;
+    std::unordered_map<std::string, PointF> m_glyphOffsets;
+    sk_sp<SkImage> rasterGlyph(const std::string& name, int size, Color color, double scale, bool center);
     sk_sp<SkImage> cached(const std::string& key);
     void store(const std::string& key, sk_sp<SkImage> image);
 

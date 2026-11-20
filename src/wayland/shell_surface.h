@@ -26,6 +26,7 @@ struct xdg_toplevel;
 struct zxdg_imported_v2;
 struct cutefish_shell_surface_v1;
 struct cutefish_status_item_v1;
+struct cutefish_wallpaper_tint_v1;
 
 namespace cutefish::ui {
 class DropOffer;
@@ -50,6 +51,7 @@ public:
         // A configure sequence ended. A zero size leaves the choice to the client.
         virtual void configure(int width, int height, const WindowStates& states) = 0;
         virtual void scaleChanged(double scale) = 0;
+        virtual void wallpaperTintChanged(WallpaperTint) {}
         // The close button of a toplevel, or a popup dismissed by the compositor.
         virtual void closeRequested() = 0;
         virtual void frameDone() = 0;
@@ -226,6 +228,7 @@ private:
     zxdg_imported_v2* m_imported = nullptr;
     cutefish_shell_surface_v1* m_shellSurface = nullptr;
     cutefish_status_item_v1* m_statusItem = nullptr;
+    cutefish_wallpaper_tint_v1* m_wallpaperTint = nullptr;
     wl_callback* m_frameCallback = nullptr;
     ShellSurface* m_parent = nullptr;
     // The outputs the surface is on, the first entered first.

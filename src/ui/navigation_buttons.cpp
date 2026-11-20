@@ -9,6 +9,7 @@ NavigationButtons::NavigationButtons()
     : m_back(addButton("chevron-left"))
     , m_forward(addButton("chevron-right"))
 {
+    setToolbarAppearance(true);
 }
 
 } // namespace cutefish::ui

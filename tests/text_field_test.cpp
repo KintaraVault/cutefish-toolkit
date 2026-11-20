@@ -349,8 +349,8 @@ TEST(TextFieldTest, SearchFieldClears)
     window.grab();
     std::string changed;
     field->onTextChanged = [&changed, field] { changed = field->text() + "!"; };
-    // The clear glyph is 14 wide, 12 from the end; its hit area reaches 7 past it.
-    TestInput::click(window, {bounds.right() - 12 - 14 - 5, bounds.y + 15});
+    // The clear glyph is 14 wide, 10 from the end; its hit area reaches 7 past it.
+    TestInput::click(window, {bounds.right() - 10 - 14 - 5, bounds.y + 15});
     EXPECT_EQ(field->text(), "");
     EXPECT_EQ(changed, "!");
     // Gone without text: a click there lands in the field.
@@ -440,9 +440,9 @@ TEST(TextFieldTest, SearchFieldGlyphColour)
     const auto darkestGlyph = [&window, bounds] {
         const Image image = window.grab();
         int value = 255;
-        // The search glyph, 12 from the start, 14 wide.
+        // The search glyph, 10 from the start, 14 wide.
         for (int y = int(bounds.y); y < int(bounds.bottom()); ++y) {
-            for (int x = int(bounds.x + 12); x < int(bounds.x + 26); ++x)
+            for (int x = int(bounds.x + 10); x < int(bounds.x + 24); ++x)
                 value = std::min(value, int(image.pixel(x, y).g));
         }
         return value;

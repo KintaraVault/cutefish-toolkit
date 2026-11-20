@@ -174,13 +174,20 @@ double WindowHeader::buttonsTop() const
     return m_zone->geometry().y;
 }
 
+void WindowHeader::setForcesColoredControls(bool colored)
+{
+    for (auto* button : {m_close, m_minimize, m_maximize})
+        button->setForcesColoredWindowControl(colored);
+    requestLayout();
+}
+
 void WindowHeader::layout()
 {
     const double size = m_closeOnly ? kButton : m_buttonSize;
     const double slotInset = (kSlot - size) / 2;
-    // A RowLayout centres on whole pixels.
-    double top = m_buttonsCentered ? std::floor((geometry().height - size) / 2) : m_buttonMargin + slotInset;
-    const double spacing = Theme::current().coloredWindowControls ? window_controls::kColoredSpacing
+    // Keep the same centre as the toolbar even when the header is odd-sized.
+    double top = m_buttonsCentered ? (geometry().height - size) / 2 : m_buttonMargin + slotInset;
+    const double spacing = m_close->isWindowControlColored() ? window_controls::kColoredSpacing
                                                                   : window_controls::kSpacing;
     double row = 0;
     for (HeaderButton* button : {m_close, m_minimize, m_maximize}) {

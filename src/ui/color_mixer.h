@@ -50,6 +50,8 @@ bool sameColor(const std::optional<ColorRecipe>& a, const std::optional<ColorRec
 ColorRecipe withAlpha(const ColorRecipe& recipe, double alpha);
 ColorRecipe lighter(const ColorRecipe& recipe, double factor);
 ColorRecipe darker(const ColorRecipe& recipe, double factor);
+// Apply the window material to a custom base, with its opacity unchanged.
+ColorRecipe wallpaperTinted(Color color);
 
 // The recipes one mixer gives; a recipe replaces one an earlier mixer gave
 // for the same colour.

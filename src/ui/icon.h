@@ -32,6 +32,8 @@ public:
     // Unset is the theme's text colour.
     void setColor(std::optional<ColorRecipe> color);
     void setSize(double size);
+    // Align the visible outline, not the SVG's sometimes asymmetric padding.
+    void setInkCentered(bool centered);
 
     SizeF sizeHint() const override { return {m_size, m_size}; }
 
@@ -42,6 +44,7 @@ private:
     std::string m_name;
     std::optional<ColorRecipe> m_color;
     double m_size;
+    bool m_inkCentered = false;
 };
 
 // An icon from the user's icon theme, by its freedesktop name, such as an

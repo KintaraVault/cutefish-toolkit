@@ -4,6 +4,8 @@
 #include "ui/theme.h"
 
 #include "ui/application.h"
+#include "ui/color_provider.h"
+#include "ui/color_provider_scope.h"
 #include "ui/text_context.h"
 
 namespace cutefish::ui {
@@ -41,11 +43,14 @@ Theme Theme::dark()
 
 const Theme& Theme::current()
 {
+    if (const ColorProvider* provider = ColorProviderScope::active())
+        return provider->theme();
     return s_current;
 }
 
 void Theme::setCurrent(const Theme& theme)
 {
+    const ColorProviderScope system(nullptr);
     const bool fontChanged = theme.fontFamily != s_current.fontFamily;
     s_current = theme;
     if (Application* application = Application::instance(); application && fontChanged)

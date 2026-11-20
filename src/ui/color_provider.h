@@ -43,7 +43,9 @@ public:
 
 private:
     friend class ColorRecipe;
+    friend class Window;
 
+    ColorProvider(const Theme& theme, uint32_t wallpaperTone);
     Color get(uint16_t id) const;
 
     Theme m_theme;

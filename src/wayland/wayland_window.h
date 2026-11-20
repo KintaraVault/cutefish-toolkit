@@ -113,6 +113,7 @@ public:
 private:
     void configure(int width, int height, const WindowStates& states) override;
     void scaleChanged(double scale) override;
+    void wallpaperTintChanged(WallpaperTint tint) override { m_window->setWallpaperTint(tint); }
     // The scale of the buffer a window of the scale is presented in.
     double bufferScale(double scale) const;
     void closeRequested() override;

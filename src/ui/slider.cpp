@@ -7,22 +7,17 @@
 #include <algorithm>
 #include <cmath>
 
-#include "include/core/SkCanvas.h"
-#include "include/core/SkSurface.h"
-
 #include "ui/keys.h"
 #include "ui/painter.h"
-#include "ui/smooth_rectangle.h"
 #include "ui/window.h"
 
 namespace cutefish::ui {
 
-static constexpr double kTrack = 4;
-static constexpr double kHandle = 22;
-// The handle's drop shadow: radius 10, 21 samples, four pixels down.
-static constexpr double kShadowSigma = 5;
-static constexpr double kShadowRadius = 10;
-static constexpr double kShadowOffset = 4;
+static constexpr double kTrack = 6;
+static constexpr double kHandle = kTrack + 2 * Slider::trackInset();
+static constexpr double kHandleHeight = 16;
+static constexpr double kShadowSigma = 2.5;
+static constexpr double kShadowOffset = 2;
 
 Slider::Slider() = default;
 
@@ -131,7 +126,7 @@ RectF Slider::handleRect() const
 {
     const RectF bounds = localRect();
     const double travel = std::max(0.0, bounds.width - kHandle);
-    return {travel * visualPosition(), (bounds.height - kHandle) / 2, kHandle, kHandle};
+    return {travel * visualPosition(), (bounds.height - kHandleHeight) / 2, kHandle, kHandleHeight};
 }
 
 void Slider::paint(Painter& painter)
@@ -141,18 +136,16 @@ void Slider::paint(Painter& painter)
     const double centreY = bounds.height / 2;
     // The track runs between the handle's centres at both ends, its round
     // caps reaching a little past them.
-    const double start = kHandle / 2 - kTrack / 2;
+    const double start = trackInset();
     const double length = std::max(0.0, bounds.width - kHandle) + kTrack;
 
     painter.save();
-    if (!isEnabled())
-        painter.multiplyOpacity(0.4);
     // Rounded rectangles, snapped as the rounded-rectangle shader draws them.
     painter.drawRoundedRect({start, centreY - kTrack / 2, length, kTrack}, {kTrack / 2}, color(ColorId::SliderTrack));
     if (visualPosition() > 0) {
         const double filled = std::max(0.0, bounds.width - kHandle) * visualPosition() + kTrack;
         painter.drawRoundedRect({start, centreY - kTrack / 2, filled, kTrack}, {kTrack / 2},
-                                color(ColorId::SliderTrackFilled));
+                                color(isEnabled() ? ColorId::SliderTrackFilled : ColorId::SliderTickMark));
     }
     if (m_stepped && m_step > 0 && m_to != m_from) {
         const int intervals = int(std::ceil(std::abs(m_to - m_from) / m_step));
@@ -162,7 +155,7 @@ void Slider::paint(Painter& painter)
             const Color mark = color(ColorId::SliderTickMark);
             for (int i = 0; i <= intervals; ++i) {
                 const double x = kHandle / 2 + travel * std::min(1.0, double(i) / intervals);
-                painter.drawRoundedRect({x - 0.5, centreY + 12, 1, 3}, {0.5}, mark);
+                painter.drawRoundedRect({x - 0.5, centreY + 6, 1, 2}, {0.5}, mark);
             }
         }
     }
@@ -171,56 +164,13 @@ void Slider::paint(Painter& painter)
     painter.save();
     if (!isEnabled())
         painter.multiplyOpacity(0.55);
-    const double scale = painter.scale();
-    if (isEnabled()) {
-        // DropShadow radius 10 in device pixels, deviation (radius + 1) / 3.3333.
-        const double sigma = (kShadowRadius * scale + 1) / 3.3333 / scale;
-        painter.drawShadow(handle, kHandle / 2, sigma,
+    if (isEnabled())
+        painter.drawShadow(handle, kHandleHeight / 2, kShadowSigma,
                            color(m_pressed ? ColorId::SliderHandleShadowPressed : ColorId::SliderHandleShadow),
                            {0, kShadowOffset});
-    }
-    // A plain antialiased rectangle, its border not pixel aligned.
     const Color fill = color(m_pressed ? ColorId::SliderHandlePressed : ColorId::SliderHandle);
     const Color border = color(ColorId::SliderHandleBorder);
-    if (!isEnabled()) {
-        painter.drawSmoothRectangle(handle, kHandle / 2, fill, 0.5, border);
-        painter.restore();
-        return;
-    }
-    // Enabled, it is a layer under a drop shadow: the layer texture is
-    // copied into the effect's source, padded across by the blur radius
-    // (device pixels counted as logical ones), and that drawn where the
-    // handle lies. Each copy filters the edge again.
-    SkCanvas* canvas = painter.canvas();
-    const auto surface = [canvas](int width, int height) {
-        const SkImageInfo info = SkImageInfo::MakeN32Premul(width, height);
-        sk_sp<SkSurface> made = canvas->makeSurface(info);
-        if (!made)
-            made = SkSurfaces::Raster(info);
-        if (made)
-            made->getCanvas()->clear(SK_ColorTRANSPARENT);
-        return made;
-    };
-    const double padding = kShadowRadius * scale;
-    const int texture = int(std::lround(std::ceil(kHandle) * scale));
-    const int padded = int(std::lround(std::ceil(kHandle + 2 * padding) * scale));
-    const sk_sp<SkSurface> layer = surface(texture, texture);
-    const sk_sp<SkSurface> source = surface(padded, texture);
-    if (layer && source) {
-        drawSmoothRoundedRectangle(layer->getCanvas(), {0, 0, kHandle, kHandle}, kHandle / 2, scale, fill, 0.5,
-                                  border, 1);
-        source->getCanvas()->drawImageRect(layer->makeImageSnapshot(),
-                                           SkRect::MakeXYWH(SkScalar(padding * scale), 0, SkScalar(kHandle * scale),
-                                                            SkScalar(kHandle * scale)),
-                                           SkSamplingOptions(SkFilterMode::kLinear), nullptr);
-        const PointF origin = painter.offset() + handle.topLeft();
-        SkPaint paint;
-        paint.setAlphaf(float(painter.opacity()));
-        canvas->drawImageRect(source->makeImageSnapshot(),
-                              SkRect::MakeXYWH(SkScalar((origin.x - padding) * scale), SkScalar(origin.y * scale),
-                                               SkScalar((kHandle + 2 * padding) * scale), SkScalar(kHandle * scale)),
-                              SkSamplingOptions(SkFilterMode::kLinear), &paint);
-    }
+    painter.drawSmoothRectangle(handle, kHandleHeight / 2, fill, 0.5, border);
     painter.restore();
 }
 

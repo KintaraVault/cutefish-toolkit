@@ -28,6 +28,8 @@ public:
     bool isChecked() const { return m_checked; }
     // The hovered plate without the pointer, as for a drop target.
     void setHighlighted(bool highlighted);
+    // An always-visible glass capsule for a regular toolbar action.
+    void setToolbarAppearance(bool enabled);
 
     // The plate's alpha over the header tint, hovered and pressed.
     struct PlateAlphas
@@ -42,6 +44,8 @@ public:
     void setGlyphColor(std::optional<Color> color);
     // A window control, drawn by window_controls in the theme's style.
     void setWindowControl(bool windowControl);
+    void setForcesColoredWindowControl(bool colored);
+    bool isWindowControlColored() const;
     // The group's hover, set by the owner of the neighbouring controls; only
     // colored controls light up with their row.
     void setGroupHovered(bool hovered);
@@ -79,6 +83,8 @@ private:
     bool m_windowControl = false;
     bool m_groupHovered = false;
     bool m_segment = false;
+    bool m_forcesColored = false;
+    bool m_toolbarAppearance = false;
     std::optional<Color> m_glyphColor;
     PlateAlphas m_light = {0.11, 0.21};
     PlateAlphas m_dark = {0.12, 0.06};

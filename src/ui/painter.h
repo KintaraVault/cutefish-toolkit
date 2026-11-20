@@ -86,6 +86,9 @@ public:
     // The first edge on the next whole device pixel, and as many pixels as the
     // rect encloses, at least one.
     Rect snappedRect(const RectF& rect) const;
+    // A square raster of the given logical size, centred to the nearest
+    // device pixel. Neither its size nor its centre is rounded in logical space.
+    Rect centeredSquare(const RectF& bounds, double size) const;
 
     void fillRect(const RectF& rect, Color color);
     // The rounded rectangle most controls draw with: the

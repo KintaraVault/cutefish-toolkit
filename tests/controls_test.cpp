@@ -74,7 +74,7 @@ TEST(ControlsTest, TogglesKeepTheirPadding)
     window.grab();
     EXPECT_EQ(check->sizeHint().width, 28);
     EXPECT_EQ(check->sizeHint().height, 28);
-    EXPECT_EQ(toggle->sizeHint().width, 54);
+    EXPECT_EQ(toggle->sizeHint().width, 52);
     EXPECT_EQ(toggle->sizeHint().height, 20);
     const double width = radio->sizeHint().width;
     // As horizontalPadding: 0.
@@ -242,6 +242,27 @@ TEST(ControlsTest, SegmentedControlPicksByPointerAndSpace)
     TestInput::pressKey(window, {.key = key::Space});
     EXPECT_EQ(control->currentIndex(), 2);
     TestInput::releaseKey(window, {.key = key::Space});
+    EXPECT_EQ(control->currentIndex(), 1);
+    EXPECT_EQ(picked, 1);
+}
+
+TEST(ControlsTest, AccentSegmentsCanShowAReadOnlySelection)
+{
+    Window window;
+    auto* control = host(window, std::make_unique<SegmentedControl>(
+        std::vector<std::string>{"One", "Two"}, SegmentedControl::Style::Accent));
+    EXPECT_EQ(control->sizeHint().height, 23);
+    int picked = -1;
+    control->onCurrentChanged = [&picked](int index) { picked = index; };
+    const RectF bounds = control->geometry();
+    const PointF second{bounds.x + bounds.width * 0.75, bounds.y + 10};
+    control->setCurrentIndex(0);
+    control->setEnabled(false);
+    TestInput::click(window, second);
+    EXPECT_EQ(control->currentIndex(), 0);
+    EXPECT_EQ(picked, -1);
+    control->setEnabled(true);
+    TestInput::click(window, second);
     EXPECT_EQ(control->currentIndex(), 1);
     EXPECT_EQ(picked, 1);
 }

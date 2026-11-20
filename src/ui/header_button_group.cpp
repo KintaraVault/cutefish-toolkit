@@ -3,6 +3,8 @@
 
 #include "ui/header_button_group.h"
 
+#include <cmath>
+
 #include "ui/header_button.h"
 #include "ui/painter.h"
 #include "ui/theme.h"
@@ -42,6 +44,8 @@ SizeF HeaderButtonGroup::sizeHint() const
 
 void HeaderButtonGroup::setToolbarAppearance(bool enabled)
 {
+    if (m_toolbarAppearance == enabled)
+        return;
     m_toolbarAppearance = enabled;
     requestLayout();
     requestPaint();
@@ -75,14 +79,27 @@ void HeaderButtonGroup::paint(Painter& painter)
         toolbar_surface::capsule(painter, bounds, dark);
     else
         window_controls::paintGroupPlate(painter, bounds, dark);
-    const Color edge = (dark ? Color::rgb(0xFFFFFF) : Color::rgb(0x000000)).withAlpha(dark ? 0.14 : 0.12);
+    const Color ink = Color::rgb(dark ? 0xffffff : 0x000000);
+    const Color edge = ink.withAlpha(dark ? 0.14 : 0.12);
     bool first = true;
     for (const HeaderButton* button : m_buttons) {
         if (!button->isVisible())
             continue;
-        if (!first)
-            painter.drawVerticalLine(button->geometry().x, bounds.y + kDividerInset,
-                                     bounds.height - 2 * kDividerInset, edge);
+        if (!first) {
+            const double x = button->geometry().x;
+            if (m_toolbarAppearance) {
+                const double inset = bounds.height * 0.20;
+                const double column = std::floor((x + painter.offset().x) * painter.scale());
+                const RectF seam{column / painter.scale() - painter.offset().x, bounds.y + inset,
+                                1 / painter.scale(), bounds.height - 2 * inset};
+                Path path;
+                path.addRect(seam);
+                painter.fillPath(path, LinearGradient{{seam.x, seam.y}, {seam.x, seam.bottom()},
+                    {{0, ink.withAlpha(0)}, {0.20, edge}, {0.80, edge}, {1, ink.withAlpha(0)}}});
+            } else {
+                painter.drawVerticalLine(x, bounds.y + kDividerInset, bounds.height - 2 * kDividerInset, edge);
+            }
+        }
         first = false;
     }
 }
