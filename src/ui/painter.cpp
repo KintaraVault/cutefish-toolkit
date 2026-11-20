@@ -12,6 +12,7 @@
 
 #include "include/core/SkBlurTypes.h"
 #include "include/core/SkCanvas.h"
+#include "include/core/SkColorFilter.h"
 #include "include/core/SkImage.h"
 #include "include/core/SkPixmap.h"
 #include "include/core/SkMaskFilter.h"
@@ -53,6 +54,24 @@ void Painter::save()
 {
     m_saved.push_back({m_offset, m_opacity});
     m_canvas->save();
+}
+
+void Painter::saveToneLayer(const RectF& bounds, Color shadows, Color highlights)
+{
+    constexpr float luminance[]{.2126f, .7152f, .0722f};
+    const float low[]{shadows.r / 255.f, shadows.g / 255.f, shadows.b / 255.f};
+    const float high[]{highlights.r / 255.f, highlights.g / 255.f, highlights.b / 255.f};
+    float matrix[20]{};
+    for (int row = 0; row < 3; ++row) {
+        matrix[row * 5 + 4] = low[row];
+        for (int col = 0; col < 3; ++col)
+            matrix[row * 5 + col] = luminance[col] * (high[row] - low[row]);
+    }
+    matrix[18] = 1;
+    SkPaint paint;
+    paint.setColorFilter(SkColorFilters::Matrix(matrix));
+    m_saved.push_back({m_offset, m_opacity});
+    m_canvas->saveLayer(toSkRect(deviceRect(bounds)), &paint);
 }
 
 void Painter::restore()

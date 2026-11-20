@@ -11,6 +11,7 @@
 namespace cutefish::ui {
 
 static Theme s_current = Theme::light();
+static AppearanceStyle s_appearanceStyle;
 static uint64_t s_generation = 0;
 
 Theme Theme::light()
@@ -64,6 +65,24 @@ void Theme::setCurrent(const Theme& theme)
 uint64_t Theme::generation()
 {
     return s_generation;
+}
+
+void Theme::setCurrent(const Theme& theme, const AppearanceStyle& style)
+{
+    s_appearanceStyle = style;
+    setCurrent(theme);
+}
+
+const AppearanceStyle& Theme::appearanceStyle()
+{
+    return s_appearanceStyle;
+}
+
+Color Theme::textSelectionColor()
+{
+    const auto& theme = current();
+    const auto shade = appearance_style::color(s_appearanceStyle.textHighlight, theme.highlight);
+    return appearance_style::blend(theme.background, shade, theme.darkMode ? .78 : .36);
 }
 
 base::Signal<>& Theme::changed()

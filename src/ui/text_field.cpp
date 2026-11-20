@@ -224,7 +224,8 @@ struct TextField::Private
             const size_t start = toDisplay(edit.selectionStart());
             const size_t end = toDisplay(edit.selectionEnd());
             textlayout::TextStyle selected = normal;
-            selected.setColor((selectedTextColor ? selectedTextColor->resolve() : theme.highlightedText).argb());
+            selected.setColor((selectedTextColor ? selectedTextColor->resolve()
+                                                : selectionColor ? theme.highlightedText : theme.text).argb());
             add(0, start);
             builder->pushStyle(selected);
             add(start, end);
@@ -718,7 +719,7 @@ void TextField::paint(Painter& painter)
     // A selection shows with or without the focus.
     if (d->preedit.empty() && d->edit.hasSelection()) {
         SkPaint selection;
-        selection.setColor((d->selectionColor ? d->selectionColor->resolve() : theme.highlight).argb());
+        selection.setColor((d->selectionColor ? d->selectionColor->resolve() : Theme::textSelectionColor()).argb());
         const size_t start = utf16Index(d->display, d->toDisplay(d->edit.selectionStart()));
         const size_t end = utf16Index(d->display, d->toDisplay(d->edit.selectionEnd()));
         for (const textlayout::TextBox& box : text->getRectsForRange(

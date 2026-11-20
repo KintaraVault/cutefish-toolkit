@@ -597,7 +597,7 @@ void TextArea::paint(Painter& painter)
             selection.push_back(SkRect::MakeLTRB(topLeft.fX, topLeft.fY, bottomRight.fX, bottomRight.fY));
         }
         SkPaint paint;
-        paint.setColor(d->selectionColor.value_or(theme.highlight).argb());
+        paint.setColor(d->selectionColor.value_or(Theme::textSelectionColor()).argb());
         for (const SkRect& rect : selection)
             canvas->drawRect(rect, paint);
     }
@@ -618,7 +618,7 @@ void TextArea::paint(Painter& painter)
         for (const SkRect& rect : selection) {
             canvas->save();
             canvas->clipRect(rect);
-            draw(d->selectedTextColor.value_or(theme.highlightedText));
+            draw(d->selectedTextColor.value_or(d->selectionColor ? theme.highlightedText : theme.text));
             canvas->restore();
         }
         canvas->restore();

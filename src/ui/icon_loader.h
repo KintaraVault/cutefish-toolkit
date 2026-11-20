@@ -124,6 +124,8 @@ private:
     IconTheme& theme(const std::string& name);
     std::string lookup(const std::string& name, const std::string& requested, int size, int scale, bool* foreign);
     Resolved resolve(const std::string& name, int size, double scale);
+    sk_sp<SkImage> styledApplication(const std::string& key, const std::string& name,
+                                      const Resolved& source, sk_sp<SkImage> image);
     // Touches nothing of the loader: any thread.
     static sk_sp<SkImage> rasterise(const std::string& path, int size, const Color* tint,
                                     const std::string& plate = {});

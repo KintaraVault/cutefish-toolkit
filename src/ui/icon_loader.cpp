@@ -1236,14 +1236,67 @@ sk_sp<SkImage> IconLoader::svg(const std::string& path, int width, int height, c
     return image;
 }
 
+sk_sp<SkImage> IconLoader::styledApplication(const std::string& key, const std::string& name,
+                                              const Resolved& source, sk_sp<SkImage> image)
+{
+    const auto& style = Theme::appearanceStyle();
+    if (!image || style.icons == IconStyle::Default || name.ends_with("-symbolic")
+            || (source.path.find("/apps/") == std::string::npos
+                && source.path.find("/applications/") == std::string::npos
+                && source.path.find("/pixmaps/") == std::string::npos
+                && !name.starts_with('/')))
+        return image;
+
+    const auto& theme = Theme::current();
+    const bool dark = appearance_style::dark(style, theme.darkMode);
+    const auto colors = appearance_style::layers(style, theme.darkMode, theme.highlight, theme.highlight);
+    const std::string styled = key + "/style:" + std::to_string(int(style.icons)) + ":"
+            + std::to_string(dark) + ":" + std::to_string(colors.ink.r)
+            + ":" + std::to_string(colors.ink.g) + ":" + std::to_string(colors.ink.b)
+            + ":" + std::to_string(colors.bottom.r) + ":" + std::to_string(colors.bottom.g)
+            + ":" + std::to_string(colors.bottom.b);
+    if (auto variant = cached(styled))
+        return variant;
+
+    // Themed vector/raster artwork without source layers: retain coverage
+    // and remap contrast between the material's low and high tones.
+    const float luma[] = {.2126f, .7152f, .0722f};
+    const Color low = style.icons == IconStyle::Clear
+            ? Color::rgb(dark ? 0x222329 : 0x7b828d) : colors.bottom;
+    const Color high = style.icons == IconStyle::Clear ? Color::rgb(0xf4f5f9) : colors.ink;
+    const float from[] = {low.r / 255.f, low.g / 255.f, low.b / 255.f};
+    const float to[] = {high.r / 255.f, high.g / 255.f, high.b / 255.f};
+    float matrix[20] = {};
+    for (int row = 0; row < 3; ++row) {
+        for (int col = 0; col < 3; ++col)
+            matrix[row * 5 + col] = luma[col] * (to[row] - from[row]);
+        matrix[row * 5 + 4] = from[row];
+        if (style.icons == IconStyle::Dark)
+            matrix[row * 5 + row] += .30f;
+    }
+    matrix[18] = style.icons == IconStyle::Clear ? (dark ? .68f : .82f) : 1.f;
+    auto surface = SkSurfaces::Raster(SkImageInfo::MakeN32Premul(image->width(), image->height()));
+    if (!surface)
+        return image;
+    SkPaint paint;
+    paint.setColorFilter(SkColorFilters::Matrix(matrix));
+    surface->getCanvas()->clear(SK_ColorTRANSPARENT);
+    surface->getCanvas()->drawImage(image, 0, 0, SkSamplingOptions(), &paint);
+    auto variant = surface->makeImageSnapshot();
+    if (!variant)
+        return image;
+    store(styled, variant);
+    return variant;
+}
+
 sk_sp<SkImage> IconLoader::pixmap(const std::string& name, int pixels)
 {
     if (pixels <= 0)
         return nullptr;
     const std::string key = "pixmap:" + Theme::current().iconTheme + "/" + name + "@" + std::to_string(pixels);
-    if (sk_sp<SkImage> image = cached(key))
-        return image;
     const Resolved resolved = resolve(name, pixels, 1);
+    if (sk_sp<SkImage> image = cached(key))
+        return styledApplication(key, name, resolved, std::move(image));
     const std::string& path = resolved.path;
     if (path.empty())
         return nullptr;
@@ -1262,7 +1315,7 @@ sk_sp<SkImage> IconLoader::pixmap(const std::string& name, int pixels)
     }
     if (image)
         store(key, image);
-    return image;
+    return styledApplication(key, name, resolved, std::move(image));
 }
 
 // A theme may keep, beside a directory, the same drawings fitted to the pixel
@@ -1288,15 +1341,15 @@ sk_sp<SkImage> IconLoader::themeIcon(const std::string& name, int size, int icon
 {
     const std::string key = "theme:" + Theme::current().iconTheme + "/" + name + "@" + std::to_string(size) + "x"
             + std::to_string(iconScale) + ":" + std::to_string(pixels);
-    if (sk_sp<SkImage> image = cached(key))
-        return image;
     const Resolved resolved = resolve(name, size, iconScale);
+    if (sk_sp<SkImage> image = cached(key))
+        return styledApplication(key, name, resolved, std::move(image));
     if (resolved.path.empty())
         return nullptr;
     sk_sp<SkImage> image = rasterise(fittedDrawing(resolved.path, pixels), pixels, nullptr, resolved.plate);
     if (image)
         store(key, image);
-    return image;
+    return styledApplication(key, name, resolved, std::move(image));
 }
 
 void IconLoader::preloadThemeIcons(const std::vector<std::string>& names, int size, double scale,
@@ -1354,15 +1407,15 @@ sk_sp<SkImage> IconLoader::themeIcon(const std::string& name, int size, double s
     const int device = int(std::lround(size * scale));
     const std::string key = "theme:" + Theme::current().iconTheme + "/" + name + "@" + std::to_string(size) + "x"
             + std::to_string(device);
-    if (sk_sp<SkImage> image = cached(key))
-        return image;
     const Resolved resolved = resolve(name, size, scale);
+    if (sk_sp<SkImage> image = cached(key))
+        return styledApplication(key, name, resolved, std::move(image));
     if (resolved.path.empty())
         return nullptr;
     sk_sp<SkImage> image = rasterise(resolved.path, device, nullptr, resolved.plate);
     if (image)
         store(key, image);
-    return image;
+    return styledApplication(key, name, resolved, std::move(image));
 }
 
 } // namespace cutefish::ui

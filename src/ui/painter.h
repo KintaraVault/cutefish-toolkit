@@ -52,6 +52,8 @@ public:
 
     // Saves and restores the offset, the clip and the opacity.
     void save();
+    // Like save(), but remap the enclosed layer's luminance when restored.
+    void saveToneLayer(const RectF& bounds, Color shadows, Color highlights);
     void restore();
     void translate(PointF offset);
     // Turns what is drawn from here on by the degrees, clockwise, about a

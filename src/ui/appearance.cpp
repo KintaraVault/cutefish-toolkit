@@ -91,13 +91,13 @@ int AppearanceWatcher::replied(sd_bus_message* reply, void* data, sd_bus_error*)
 void AppearanceWatcher::apply(sd_bus_message* reply)
 {
     bool dark = Theme::current().darkMode;
-    int accent = 0;
     double pointSize = Theme::current().fontPointSize;
     std::string family = Theme::current().fontFamily;
     std::string fixedFamily = Theme::current().fixedFontFamily;
     std::string iconTheme = Theme::current().iconTheme;
     bool continuous = Theme::current().continuousCorners;
     bool coloredControls = Theme::current().coloredWindowControls;
+    AppearanceStyle style;
 
     if (sd_bus_message_enter_container(reply, 'a', "{sv}") < 0)
         return;
@@ -119,16 +119,30 @@ void AppearanceWatcher::apply(sd_bus_message* reply)
                 continuous = value;
             else if (key == "coloredWindowControls")
                 coloredControls = value;
+            else if (key == "reduceTransparency")
+                style.reduceTransparency = value;
         } else if (type == "i") {
             int value = 0;
             sd_bus_message_read(reply, "i", &value);
             if (key == "accentColor")
-                accent = value;
+                style.accentColor = value;
+            else if (key == "iconStyle")
+                style.icons = appearance_style::iconStyle(value);
+            else if (key == "iconTone")
+                style.tone = appearance_style::iconTone(value);
+            else if (key == "folderColor")
+                style.folderColor = appearance_style::colorIndex(value);
+            else if (key == "iconTint")
+                style.tintColor = appearance_style::colorIndex(value);
+            else if (key == "textHighlight")
+                style.textHighlight = appearance_style::colorIndex(value);
         } else if (type == "d") {
             double value = 0;
             sd_bus_message_read(reply, "d", &value);
             if (key == "systemFontPointSize" && value > 0)
                 pointSize = value;
+            else if (key == "glassStrength")
+                style.glass = appearance_style::glassValue(value);
         } else if (type == "s") {
             const char* value = nullptr;
             sd_bus_message_read(reply, "s", &value);
@@ -147,14 +161,14 @@ void AppearanceWatcher::apply(sd_bus_message* reply)
     sd_bus_message_exit_container(reply);
 
     Theme theme = dark ? Theme::dark() : Theme::light();
-    theme.highlight = ui::accent::fromIndex(accent);
+    theme.highlight = ui::accent::fromIndex(style.accentColor);
     theme.fontPointSize = pointSize;
     theme.fontFamily = family;
     theme.fixedFontFamily = fixedFamily;
     theme.iconTheme = iconTheme;
     theme.continuousCorners = continuous;
     theme.coloredWindowControls = coloredControls;
-    Theme::setCurrent(theme);
+    Theme::setCurrent(theme, style);
 }
 
 } // namespace cutefish::ui

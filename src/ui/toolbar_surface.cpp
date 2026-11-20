@@ -10,6 +10,9 @@
 #include "include/effects/SkRuntimeEffect.h"
 
 #include "ui/painter.h"
+#include "ui/theme.h"
+#include "ui/view_glass.h"
+#include "ui/window.h"
 
 namespace cutefish::ui::toolbar_surface {
 
@@ -22,6 +25,8 @@ uniform float radius;
 uniform float scale;
 uniform float darkMode;
 uniform float recessed;
+uniform float frosting;
+uniform float opaqueMaterial;
 layout(color) uniform half4 tint;
 
 half4 main(float2 xy)
@@ -55,13 +60,24 @@ half4 main(float2 xy)
         light = mix(0.085, 0.068, y) + rim * (0.045 + 0.085 * upper + 0.070 * lower)
               + bevel * (0.028 * upper + 0.023 * lower);
     } else {
-        ink = 0.018 * y + rim * (0.082 + 0.034 * (1.0 - upper));
-        light = mix(0.33, 0.12, y) + bevel * (0.46 * upper + 0.21 * lower);
+        // In light mode the shoulder is softly shaded above a near-white
+        // lower face; the specular highlight follows the inner bevel.
+        ink = mix(0.031, 0.007, smoothstep(0.18, 0.74, y))
+              + rim * (0.033 + 0.012 * (1.0 - upper));
+        light = mix(0.11, 0.16, y) + bevel * (0.28 * upper + 0.15 * lower);
     }
     // Black over white, with the result premultiplied and clipped only once.
     float rgb = light * (1.0 - ink);
     half4 surface = half4(half3(rgb), half(ink + rgb));
     half4 base = half4(tint.rgb * tint.a, tint.a);
+    if (opaqueMaterial > 0.5)
+        base = half4(half3(darkMode > 0.5 ? 0.20 : 0.93), 1.0);
+    else {
+        float frost = max(frosting, 0.0) * (darkMode > 0.5 ? 0.32 : 0.37);
+        half4 ground = half4(half3((darkMode > 0.5 ? 0.17 : 1.0) * frost), frost);
+        base = base + ground * (1.0 - base.a);
+        surface *= half(1.0 + min(frosting, 0.0) * 0.49);
+    }
     return (surface + base * (1.0 - surface.a)) * half(coverage);
 }
 )";
@@ -89,6 +105,9 @@ static void material(Painter& painter, const RectF& box, bool dark, bool recesse
         builder.uniform("scale") = float(painter.scale());
         builder.uniform("darkMode") = dark ? 1.0f : 0.0f;
         builder.uniform("recessed") = recessed ? 1.0f : 0.0f;
+        const auto& style = Theme::appearanceStyle();
+        builder.uniform("frosting") = float(2 * style.glass - 1);
+        builder.uniform("opaqueMaterial") = style.reduceTransparency ? 1.0f : 0.0f;
         builder.uniform("tint") = SkColor4f{tint.r / 255.f, tint.g / 255.f, tint.b / 255.f, tint.a / 255.f};
         shader = builder.makeShader();
     }
@@ -104,6 +123,48 @@ static void material(Painter& painter, const RectF& box, bool dark, bool recesse
     paint.setShader(std::move(shader));
     paint.setAlphaf(float(painter.opacity()));
     painter.canvas()->drawIRect(SkIRect::MakeXYWH(boxPx.x, boxPx.y, boxPx.width, boxPx.height), paint);
+}
+
+ViewGlass previewGlass(const RectF& box, double strength, bool reduceTransparency)
+{
+    const auto t = appearance_style::glassValue(strength);
+    ViewGlass pane;
+    pane.rect = box;
+    pane.radius = box.height / 2;
+    pane.blur = std::lerp(0.7, 8.0, t);
+    pane.bezel = std::min(7.0, box.height / 4);
+    pane.bend = std::lerp(6.0, 1.5, t);
+    pane.dispersion = .045;
+    pane.saturation = std::lerp(1.12, .56, t);
+    pane.tint[3] = reduceTransparency ? 1 : std::lerp(.08, .62, t);
+    pane.edge[3] = .28;
+    pane.edge[0] = pane.edge[1] = pane.edge[2] = 1;
+    pane.sideEdge[3] = .09;
+    return pane;
+}
+
+void applyWindowGlass(Window& window)
+{
+    const auto& style = Theme::appearanceStyle();
+    if (style.reduceTransparency) {
+        window.setBackgroundBlur({}, 0);
+        window.setBackgroundGlass(std::nullopt);
+        return;
+    }
+    const auto size = window.size();
+    window.setBackgroundBlur({0, 0, size.width, size.height}, Theme::current().windowRadius);
+    const auto t = appearance_style::glassValue(style.glass);
+    GlassMaterial glass;
+    glass.blurSigma = std::lerp(4.0, 14.0, t);
+    glass.displacement = std::lerp(12.0, 3.0, t);
+    glass.bevel = 8;
+    glass.depth = 6;
+    glass.chroma = .018;
+    glass.tintAlpha = std::lerp(0.0, .18, t);
+    glass.saturation = std::lerp(1.0, .72, t);
+    if (Theme::current().darkMode)
+        glass.tintRed = glass.tintGreen = glass.tintBlue = .12;
+    window.setBackgroundGlass(glass);
 }
 
 void capsule(Painter& painter, const RectF& box, bool dark)

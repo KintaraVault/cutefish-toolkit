@@ -8,6 +8,7 @@
 #include <string>
 
 #include "base/signal.h"
+#include "ui/appearance_style.h"
 #include "ui/geometry.h"
 
 namespace cutefish::ui {
@@ -16,6 +17,8 @@ namespace cutefish::ui {
 // kept in points, as the appearance settings store them.
 struct Theme
 {
+    static constexpr const char* kDefaultFontFamily = "Inter";
+
     bool darkMode = false;
 
     Color background;
@@ -37,7 +40,7 @@ struct Theme
     double largeSpacing = 12;
 
     // Empty: fontconfig's sans-serif.
-    std::string fontFamily;
+    std::string fontFamily = kDefaultFontFamily;
     // The appearance's fixed-pitch family; empty for the platform's default.
     std::string fixedFontFamily;
     double fontPointSize = 9;
@@ -57,6 +60,9 @@ struct Theme
     static const Theme& current();
     // Every window lays out and paints again.
     static void setCurrent(const Theme& theme);
+    static void setCurrent(const Theme& theme, const AppearanceStyle& style);
+    static const AppearanceStyle& appearanceStyle();
+    static Color textSelectionColor();
     // Counts the changes, for caches of what the theme decides.
     static uint64_t generation();
     // After setCurrent has reached the windows: for what takes the theme
@@ -65,7 +71,7 @@ struct Theme
 };
 
 namespace accent {
-inline constexpr Color blue = Color::rgb(0x3385FF);
+inline constexpr Color blue = Color::rgb(0x007AFF);
 inline constexpr Color red = Color::rgb(0xFF5C6D);
 inline constexpr Color green = Color::rgb(0x35BF56);
 inline constexpr Color purple = Color::rgb(0x8266FF);

@@ -135,6 +135,7 @@ set(CUTEFISH_TOOLKIT_PUBLIC_HEADERS
     ui/text_field.h
     ui/text_layout.h
     ui/theme.h
+    ui/appearance_style.h
     ui/wallpaper_tint.h
     ui/toast.h
     ui/trusted_connection.h
