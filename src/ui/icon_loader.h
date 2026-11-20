@@ -9,6 +9,7 @@
 #include <functional>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "include/core/SkImage.h"
@@ -60,6 +61,9 @@ public:
     void registerGlyph(const std::string& name, std::string svg);
     // Reads the themes again at the next lookup; rasterised images stay.
     void reload();
+    // Drops the icons drawn with a date, after the day, the language or the
+    // font changed; the next lookup draws them again.
+    void forgetDated();
 
 private:
     struct Directory
@@ -113,12 +117,14 @@ private:
         bool found = false;
     };
 
-    // A file the lookup settles on, and the theme's plate when the file is an
-    // application's own icon from outside the theme.
+    // A file the lookup settles on, the theme's plate when the file is an
+    // application's own icon from outside the theme, and the drawing with
+    // slots for a date when the theme has one for the file.
     struct Resolved
     {
         std::string path;
         std::string plate;
+        std::string dated;
     };
 
     IconTheme& theme(const std::string& name);
@@ -129,6 +135,11 @@ private:
     // Touches nothing of the loader: any thread.
     static sk_sp<SkImage> rasterise(const std::string& path, int size, const Color* tint,
                                     const std::string& plate = {});
+    // The dated drawing with today's date, for an item of the logical size,
+    // stored under the key; null for a file without one.
+    sk_sp<SkImage> datedIcon(const Resolved& resolved, const std::string& key, int size, int pixels);
+    void watchDate();
+    void armDateTimer();
     std::unordered_map<std::string, std::string> m_glyphs;
     std::unordered_map<std::string, PointF> m_glyphOffsets;
     sk_sp<SkImage> rasterGlyph(const std::string& name, int size, Color color, double scale, bool center);
@@ -140,6 +151,11 @@ private:
     // Least recently used last.
     std::list<std::pair<std::string, sk_sp<SkImage>>> m_images;
     std::unordered_map<std::string, std::list<std::pair<std::string, sk_sp<SkImage>>>::iterator> m_index;
+    std::unordered_set<std::string> m_datedKeys;
+    // A wall-clock timerfd on the application's loop: it fires at the next
+    // midnight, after a suspend that passed it, and whenever the system time
+    // is set.
+    int m_dateFd = -1;
 };
 
 } // namespace cutefish::ui

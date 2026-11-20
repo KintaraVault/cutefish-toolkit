@@ -14,3 +14,8 @@ set_tests_properties(FrameCostTest.PageOfCardsRepaintsWithinAFrame
 
 # Wall-clock bounds that a loaded machine misses.
 set_tests_properties(ImageViewTest.ShowsPicturesThatFinishTogetherTogether PROPERTIES LABELS timing)
+
+# Both MIME launch tests expect to control the AppRuntime name on the test bus.
+set_tests_properties(MimeAppsTest.OpensAUriWithWhatTakesItsScheme
+                     MimeAppsTest.OpensAUriThroughTheApplicationRuntime
+                     PROPERTIES RESOURCE_LOCK app_runtime_bus_name)

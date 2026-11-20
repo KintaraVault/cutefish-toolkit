@@ -428,13 +428,285 @@ TEST(CompositingTest, GlassShadesWhatLiesUnderItsViewByDistanceToItsOutline)
     window.show();
 
     const Image image = window.grab();
-    // White at half over black in the middle, a black line along the sides,
-    // none along the top, the corners of the rect and outside untouched.
+    // White at half over black in the middle and up to the outline, whose
+    // line lies outside it; the corners of the rect and outside untouched.
     EXPECT_NEAR(image.pixel(60, 60).r, 128, 2);
-    EXPECT_LE(image.pixel(20, 60).r, 4);
+    EXPECT_NEAR(image.pixel(20, 60).r, 128, 2);
     EXPECT_NEAR(image.pixel(60, 20).r, 128, 2);
     EXPECT_EQ(image.pixel(22, 22).r, 0);
     EXPECT_EQ(image.pixel(5, 5).r, 0);
+}
+
+TEST(CompositingTest, GlassShowsWhatLiesFurtherInWithinItsBezelAndAddsItsLight)
+{
+    Window window;
+    auto root = std::make_unique<Fill>(Color {255, 255, 255, 255});
+    Fill* black = root->addChild<Fill>(Color {0, 0, 0, 255});
+    black->setGeometry({0, 0, 14, 40});
+    Fill* grey = root->addChild<Fill>(Color {128, 128, 128, 255});
+    grey->setGeometry({60, 0, 40, 40});
+    View* bent = root->addChild<View>();
+    bent->setGeometry({10, 10, 40, 20});
+    ViewGlass bending;
+    bending.key = 1;
+    bending.rect = {0, 0, 40, 20};
+    bending.bezel = 8;
+    bending.bend = 8;
+    bending.profile = 1;
+    bent->setGlass({bending});
+    View* lit = root->addChild<View>();
+    lit->setGeometry({70, 10, 20, 20});
+    ViewGlass lighting;
+    lighting.key = 1;
+    lighting.rect = {0, 0, 20, 20};
+    lighting.light = {{0, 0.2}};
+    lit->setGlass({lighting});
+    window.resize({100, 40});
+    window.setContentView(std::move(root));
+    window.setScale(2);
+    window.show();
+
+    const Image image = window.grab();
+    // Over the black strip just inside the pane's left edge it shows the
+    // white further in; the middle shows what lies under it.
+    EXPECT_GE(image.pixel(21, 40).r, 250);
+    EXPECT_GE(image.pixel(25, 40).r, 250);
+    EXPECT_GE(image.pixel(60, 40).r, 250);
+    EXPECT_LE(image.pixel(17, 40).r, 2);
+    // The light adds to the grey under it rather than veiling it.
+    EXPECT_NEAR(image.pixel(160, 40).r, 179, 2);
+}
+
+TEST(CompositingTest, GlassBendsByItsSideBezelAtTheSidesAndRaisesItsColour)
+{
+    Window window;
+    auto root = std::make_unique<Fill>(Color {255, 255, 255, 255});
+    Fill* black = root->addChild<Fill>(Color {0, 0, 0, 255});
+    black->setGeometry({0, 0, 14, 40});
+    Fill* grey = root->addChild<Fill>(Color {128, 128, 128, 255});
+    grey->setGeometry({60, 0, 40, 40});
+    View* bent = root->addChild<View>();
+    bent->setGeometry({10, 10, 40, 20});
+    ViewGlass bending;
+    bending.key = 1;
+    bending.rect = {0, 0, 40, 20};
+    bending.bezel = 8;
+    bending.sideBezel = 0;
+    bending.bend = 8;
+    bending.profile = 1;
+    bent->setGlass({bending});
+    View* raised = root->addChild<View>();
+    raised->setGeometry({70, 10, 20, 20});
+    ViewGlass raising;
+    raising.key = 1;
+    raising.rect = {0, 0, 20, 20};
+    raising.exponent = 0.5;
+    raised->setGlass({raising});
+    window.resize({100, 40});
+    window.setContentView(std::move(root));
+    window.setScale(2);
+    window.show();
+
+    const Image image = window.grab();
+    // No bezel at the side: the black under the pane's left edge shows as it is.
+    EXPECT_LE(image.pixel(21, 40).r, 2);
+    // Grey 128 raised to the power 0.5.
+    EXPECT_NEAR(image.pixel(160, 40).r, 181, 2);
+}
+
+TEST(CompositingTest, GlassBendsMostInsideItsOutlineDispersesAtItsSidesAndLiftsItsShadowOffIt)
+{
+    Window window;
+    auto root = std::make_unique<Fill>(Color {255, 255, 255, 255});
+    Fill* black = root->addChild<Fill>(Color {0, 0, 0, 255});
+    black->setGeometry({0, 0, 14, 40});
+    Fill* band = root->addChild<Fill>(Color {0, 0, 0, 255});
+    band->setGeometry({60, 0, 100, 14});
+    View* bent = root->addChild<View>();
+    bent->setGeometry({10, 10, 40, 20});
+    ViewGlass bending;
+    bending.key = 1;
+    bending.rect = {0, 0, 40, 20};
+    bending.bezel = 8;
+    bending.bend = 8;
+    bending.bendPeak = 4;
+    bending.profile = 1;
+    bent->setGlass({bending});
+    // Two panes over the band's lower edge, dispersing all round and along
+    // the sides only.
+    std::vector<View*> dispersing;
+    for (double sides : {0.0, 1.0}) {
+        View* pane = root->addChild<View>();
+        pane->setGeometry({sides > 0 ? 110.0 : 62.0, 8, 40, 20});
+        ViewGlass glass;
+        glass.key = 1;
+        glass.rect = {0, 0, 40, 20};
+        glass.bezel = 8;
+        glass.bend = 8;
+        glass.profile = 1;
+        glass.dispersion = 0.5;
+        glass.dispersionSides = sides;
+        pane->setGlass({glass});
+    }
+    View* shaded = root->addChild<View>();
+    shaded->setGeometry({20, 50, 20, 10});
+    ViewGlass shading;
+    shading.key = 1;
+    shading.rect = {0, 0, 20, 10};
+    shading.shadow[3] = 1;
+    shading.shadowBlur = 8;
+    shading.shadowGap = 4;
+    shaded->setGlass({shading});
+    window.resize({160, 80});
+    window.setContentView(std::move(root));
+    window.setScale(2);
+    window.show();
+
+    const Image image = window.grab();
+    // Right at the outline nothing is bent, so the black strip under it
+    // shows; 4.5 points in the bend is nearly whole and shows the white.
+    EXPECT_LE(image.pixel(21, 40).r, 30);
+    EXPECT_GE(image.pixel(29, 40).r, 250);
+    // A point inside the top edge over the band: red bent less than blue
+    // where the dispersion goes all round, neither along the top where it
+    // keeps to the sides.
+    const Color all = image.pixel(2 * 82, 19);
+    const Color sides = image.pixel(2 * 130, 19);
+    EXPECT_GE(std::abs(int(all.b) - int(all.r)), 100);
+    EXPECT_LE(std::abs(int(sides.b) - int(sides.r)), 4);
+    // The shadow starts lighter at the outline than 4 points below it.
+    EXPECT_GE(image.pixel(60, 121).r, image.pixel(60, 128).r + 30);
+}
+
+TEST(CompositingTest, GlassReadsAlongItsAxesAndSplitsItsSideLine)
+{
+    Window window;
+    auto root = std::make_unique<Fill>(Color {255, 255, 255, 255});
+    Fill* band = root->addChild<Fill>(Color {0, 0, 0, 255});
+    band->setGeometry({0, 0, 100, 13});
+    View* pane = root->addChild<View>();
+    pane->setGeometry({10, 10, 60, 20});
+    ViewGlass glass;
+    glass.key = 1;
+    glass.rect = {0, 0, 60, 20};
+    glass.radius = 10;
+    glass.bezel = 8;
+    glass.bend = -6;
+    glass.profile = 1;
+    glass.bendAlongAxes = 1;
+    glass.sideEdge[3] = 1;
+    glass.edgeDevicePixels = 2;
+    glass.edgeSplit = 2;
+    pane->setGlass({glass});
+    window.resize({100, 40});
+    window.setContentView(std::move(root));
+    window.setScale(2);
+    window.show();
+
+    const Image image = window.grab();
+    // Reading straight up, a point 4 points in from the top shows the band
+    // above as well in the cap as in the middle.
+    EXPECT_LE(image.pixel(2 * 40, 2 * 14).r, 40);
+    EXPECT_LE(image.pixel(2 * 14, 2 * 14).r, 40);
+    // Just inside either end the side line's red reaches further in than
+    // its blue; along the top it does not.
+    const Color left = image.pixel(2 * 10 + 1, 2 * 20);
+    const Color right = image.pixel(2 * 70 - 2, 2 * 20);
+    const Color top = image.pixel(2 * 40, 2 * 10 + 1);
+    EXPECT_LE(left.r + 60, left.b);
+    EXPECT_LE(right.r + 60, right.b);
+    EXPECT_NEAR(top.r, top.b, 2);
+}
+
+TEST(CompositingTest, GlassKeepsItsLineOnWholePixelsTakesItsBottomLineAndMultiplies)
+{
+    Window window;
+    auto root = std::make_unique<Fill>(Color {255, 255, 255, 255});
+    Fill* grey = root->addChild<Fill>(Color {128, 128, 128, 255});
+    grey->setGeometry({66, 0, 34, 40});
+    View* snapped = root->addChild<View>();
+    snapped->setGeometry({10.25, 10, 20, 20});
+    ViewGlass snapping;
+    snapping.key = 1;
+    snapping.rect = {0, 0, 20, 20};
+    snapping.sideEdge[3] = 1;
+    snapping.edgeOnPixels = true;
+    snapped->setGlass({snapping});
+    View* lined = root->addChild<View>();
+    lined->setGeometry({40, 10, 20, 20});
+    ViewGlass lining;
+    lining.key = 1;
+    lining.rect = {0, 0, 20, 20};
+    lining.edge[3] = 1;
+    lining.bottomEdge[0] = 1;
+    lining.bottomEdge[3] = 1;
+    lined->setGlass({lining});
+    View* multiplied = root->addChild<View>();
+    multiplied->setGeometry({70, 10, 20, 20});
+    ViewGlass multiplying;
+    multiplying.key = 1;
+    multiplying.rect = {0, 0, 20, 20};
+    multiplying.multiply[1] = 0.5;
+    multiplying.multiply[2] = 0;
+    multiplying.multiply[3] = 1;
+    multiplied->setGlass({multiplying});
+    window.resize({100, 40});
+    window.setContentView(std::move(root));
+    window.setScale(2);
+    window.show();
+
+    const Image image = window.grab();
+    // The left outline falls half way into pixel 20: the line covers that
+    // pixel and leaves the one outside it alone.
+    EXPECT_GE(image.pixel(19, 40).r, 253);
+    EXPECT_LE(image.pixel(20, 40).r, 2);
+    EXPECT_GE(image.pixel(21, 40).r, 253);
+    // Black along the top, red along the bottom.
+    EXPECT_LE(image.pixel(100, 19).r, 2);
+    EXPECT_GE(image.pixel(100, 60).r, 253);
+    EXPECT_LE(image.pixel(100, 60).g, 2);
+    // Grey 128 multiplied by (1, 0.5, 0).
+    EXPECT_NEAR(image.pixel(160, 40).r, 128, 2);
+    EXPECT_NEAR(image.pixel(160, 40).g, 64, 2);
+    EXPECT_LE(image.pixel(160, 40).b, 2);
+}
+
+TEST(CompositingTest, GlassBlurredAtHalfTheResolutionShowsAFineLineWiderAndShallower)
+{
+    for (const bool halved : {false, true}) {
+        Window window;
+        auto root = std::make_unique<Fill>(Color {255, 255, 255, 255});
+        Fill* line = root->addChild<Fill>(Color {0, 0, 0, 255});
+        line->setGeometry({40, 0, 1, 40});
+        View* pane = root->addChild<View>();
+        pane->setGeometry({20, 10, 40, 20});
+        ViewGlass glass;
+        glass.key = 1;
+        glass.rect = {0, 0, 40, 20};
+        glass.blurAtHalfResolution = halved;
+        pane->setGlass({glass});
+        window.resize({80, 40});
+        window.setContentView(std::move(root));
+        window.setScale(2);
+        window.show();
+
+        const Image image = window.grab();
+        int darkest = 255;
+        int greyed = 0;
+        for (int x = 74; x < 88; ++x) {
+            darkest = std::min<int>(darkest, image.pixel(x, 40).r);
+            greyed += image.pixel(x, 40).r < 230;
+        }
+        if (!halved) {
+            // Unblurred: two black pixels.
+            EXPECT_LE(darkest, 2);
+            EXPECT_EQ(greyed, 2);
+        } else {
+            EXPECT_GE(darkest, 40);
+            EXPECT_LE(darkest, 140);
+            EXPECT_GE(greyed, 3);
+        }
+    }
 }
 
 TEST(CompositingTest, GlassMovesToNewValuesOnFramesWithoutRepaintingItsView)
@@ -465,18 +737,47 @@ TEST(CompositingTest, GlassMovesToNewValuesOnFramesWithoutRepaintingItsView)
     brighter.curve[2] = 1;
     brighter.curve[3] = 1;
     pane->setGlass({brighter});
-    // The first frame starts the move; half way through, half way there.
-    EXPECT_NEAR(TestInput::presentFrame(window, now += kFrameNs).pixel(30, 30).r, 128, 2);
-    EXPECT_NEAR(TestInput::presentFrame(window, now += 50000000).pixel(30, 30).r, 191, 3);
+    // The first frame shows the move one refresh along (a sixth of 0.1 s),
+    // two thirds of the way 50 ms later, then all of it.
+    EXPECT_NEAR(TestInput::presentFrame(window, now += kFrameNs).pixel(30, 30).r, 149, 3);
+    EXPECT_NEAR(TestInput::presentFrame(window, now += 50000000).pixel(30, 30).r, 212, 3);
     EXPECT_NEAR(TestInput::presentFrame(window, now += 50000000).pixel(30, 30).r, 255, 1);
     EXPECT_EQ(under->paints, paints);
 
     // Left out, it fades out over its own duration.
     pane->setGlass({});
-    TestInput::presentFrame(window, now += kFrameNs);
-    EXPECT_NEAR(TestInput::presentFrame(window, now += 50000000).pixel(30, 30).r, 128, 3);
+    EXPECT_NEAR(TestInput::presentFrame(window, now += kFrameNs).pixel(30, 30).r, 212, 3);
+    EXPECT_NEAR(TestInput::presentFrame(window, now += 50000000).pixel(30, 30).r, 85, 3);
     EXPECT_EQ(TestInput::presentFrame(window, now += 50000000).pixel(30, 30).r, 0);
     EXPECT_EQ(under->paints, paints);
+}
+
+TEST(CompositingTest, GlassFadingAColourOutPassesNoDarkerShade)
+{
+    Window window;
+    auto root = std::make_unique<Fill>(Color {255, 255, 255, 255});
+    auto* pane = root->addChild<View>();
+    pane->setGeometry({10, 10, 40, 40});
+    ViewGlass pressed = halfWhiteDisc();
+    pressed.tint[3] = 0;
+    pressed.sideEdge[3] = 0;
+    pressed.over[0] = pressed.over[1] = pressed.over[2] = 1;
+    pressed.over[3] = 0.85;
+    pane->setGlass({pressed});
+    window.resize({60, 60});
+    window.setContentView(std::move(root));
+    window.setScale(1);
+    window.show();
+
+    uint64_t now = 1000000000;
+    TestInput::presentFrame(window, now += kFrameNs);
+    // White laid over white, fading to no colour at all: white throughout.
+    ViewGlass released = pressed;
+    std::fill(released.over, released.over + 4, 0.0);
+    released.duration = 0.1;
+    pane->setGlass({released});
+    for (int i = 0; i < 8; ++i)
+        EXPECT_GE(TestInput::presentFrame(window, now += kFrameNs).pixel(30, 30).r, 254) << i;
 }
 
 TEST(CompositingTest, GlassLightsWhereThePointerIs)
@@ -600,10 +901,10 @@ TEST(CompositingTest, ComposedAtAnotherScaleGlassEdgesStayOneBufferPixel)
 
     const Image image = TestInput::composeFrame(window, 1.75);
     ASSERT_EQ(image.width(), 70);
-    // The pane's side line covers the one buffer pixel inside its edge.
-    EXPECT_EQ(image.pixel(6, 17).r, 255);
-    EXPECT_LE(image.pixel(7, 17).r, 2);
-    EXPECT_GE(image.pixel(8, 17).r, 253);
+    // The pane's side line covers the one buffer pixel outside its edge.
+    EXPECT_EQ(image.pixel(5, 17).r, 255);
+    EXPECT_LE(image.pixel(6, 17).r, 2);
+    EXPECT_GE(image.pixel(7, 17).r, 253);
     // The textures are scaled into the buffer: the square spans 49 to 63.
     EXPECT_LE(image.pixel(50, 14).r, 2);
     EXPECT_LE(image.pixel(62, 14).r, 2);

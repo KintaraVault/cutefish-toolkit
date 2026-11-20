@@ -4,9 +4,12 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <cmath>
+#include <cstdlib>
 #include <filesystem>
 
 #include "base/event_loop.h"
+#include "base/locale.h"
 #include "ui/application.h"
 #include "ui/check_box.h"
 #include "ui/combo_box.h"
@@ -25,6 +28,7 @@
 #include "ui/sidebar_divider.h"
 #include "ui/theme.h"
 #include "ui/window.h"
+#include "ui/window_controls.h"
 
 using namespace cutefish::ui;
 
@@ -484,6 +488,30 @@ TEST(ControlsTest, ComboBoxGreysItsTextWhenDisabled)
     EXPECT_NEAR(darkest(), theme.disabledText.g * 0.6 + theme.alternateBackground.g * 0.4, 6);
 }
 
+// The dark plate over a dark title bar: a dark line just outside its sides,
+// nothing outside its top and bottom, light just inside the top and more
+// inside the bottom, and no shadow under it.
+TEST(ControlsTest, DarkWindowControlPlateEdge)
+{
+    window_controls::State state;
+    state.dark = true;
+    const Bitmap bitmap = window_controls::render(state, 2);
+    ASSERT_EQ(bitmap.width(), 64);
+    const auto over = [&bitmap](int x, int y) {
+        const uint8_t* pixel = bitmap.bits() + size_t(y) * bitmap.stride() + size_t(x) * 4;
+        return int(std::lround(pixel[1] + 38 * (255 - pixel[3]) / 255.0));
+    };
+    // The plate covers device pixels 10 to 53 both ways.
+    EXPECT_NEAR(over(32, 9), 38, 2);
+    EXPECT_NEAR(over(32, 54), 38, 2);
+    EXPECT_NEAR(over(32, 60), 38, 1);
+    EXPECT_GE(over(32, 10) - over(32, 18), 40);
+    EXPECT_GE(over(32, 53) - over(32, 10), 15);
+    EXPECT_LE(over(9, 32), 38 - 15);
+    EXPECT_LE(over(54, 32), 38 - 15);
+    EXPECT_NEAR(over(10, 32), over(14, 32), 4);
+}
+
 // The pressed plate while checked, as while the button's menu is open, in
 // the alphas a header gives it.
 TEST(ControlsTest, HeaderButtonShowsCheckedPlate)
@@ -534,6 +562,90 @@ TEST(ControlsTest, ThemeIconsFollowTheInheritChain)
     // An unknown name falls back along its dashes.
     ThemeIcon fallback("folder-some-unknown-kind", 16);
     EXPECT_EQ(fallback.path(), path);
+}
+
+// The theme's calendar carries today's date: text in the slots of its dated
+// drawing, the slots themselves not drawn. Too small for a weekday, it has
+// the day alone, where its own drawing still has both.
+TEST(ControlsTest, CalendarIconShowsTheDate)
+{
+    const std::filesystem::path path = ThemeIcon("office-calendar", 64).path();
+    if (path.empty() || !std::filesystem::exists(path.parent_path().string() + "@dated/calendar.svg"))
+        GTEST_SKIP() << "the icon theme has no dated calendar";
+    Application& application = *Application::instance();
+    const char* saved = std::getenv("LANGUAGE");
+    const std::string previous = saved ? saved : "";
+    std::string language = previous;
+    // The icon is drawn again for a region with the next change of the
+    // language.
+    const auto inRegion = [&application, &language](const std::string& region) {
+        cutefish::base::RegionalPreferences preferences;
+        preferences.region = region;
+        cutefish::base::Locale::setSystemPreferences(preferences);
+        language = language == "en_GB" ? "en_AU" : "en_GB";
+        application.setLanguageEnvironment({{"LANGUAGE", language}});
+    };
+    inRegion("US");
+    const auto grab = [](const std::string& name, int size) {
+        Window window;
+        host(window, std::make_unique<ThemeIcon>(name, size), {double(size), double(size)});
+        return window.grab();
+    };
+    const Image image = grab("office-calendar", 64);
+    ASSERT_EQ(image.width(), 64);
+    int weekday = 0;
+    for (int y = 14; y < 22; ++y) {
+        for (int x = 12; x < 52; ++x) {
+            const Color pixel = image.pixel(x, y);
+            if (pixel.r > 200 && pixel.g < 150)
+                ++weekday;
+        }
+    }
+    EXPECT_GT(weekday, 10);
+    EXPECT_LT(weekday, 40 * 8 * 6 / 10);
+    int day = 0;
+    for (int y = 31; y < 50; ++y) {
+        for (int x = 10; x < 54; ++x) {
+            if (image.pixel(x, y).r < 120)
+                ++day;
+        }
+    }
+    EXPECT_GT(day, 30);
+    EXPECT_LT(day, 44 * 19 * 6 / 10);
+
+    const auto reddish = [](const Image& small) {
+        int count = 0;
+        for (int y = 0; y < small.height(); ++y) {
+            for (int x = 0; x < small.width(); ++x) {
+                const Color pixel = small.pixel(x, y);
+                if (pixel.r - pixel.g > 40)
+                    ++count;
+            }
+        }
+        return count;
+    };
+    EXPECT_EQ(reddish(grab("office-calendar", 24)), 0);
+    // By its path a file is drawn as it is.
+    EXPECT_GT(reddish(grab(std::filesystem::canonical(path).string(), 24)), 0);
+
+    // In Japan the weekday is as dark as the day.
+    inRegion("JP");
+    const Image dark = grab("office-calendar", 64);
+    inRegion("US");
+    EXPECT_EQ(reddish(dark), 0);
+    int darkWeekday = 0;
+    for (int y = 14; y < 22; ++y) {
+        for (int x = 12; x < 52; ++x) {
+            if (dark.pixel(x, y).r < 120)
+                ++darkWeekday;
+        }
+    }
+    EXPECT_GT(darkWeekday, 10);
+    EXPECT_GT(reddish(grab("office-calendar", 64)), 10);
+
+    using cutefish::base::RegionalPreferences;
+    cutefish::base::Locale::setSystemPreferences(RegionalPreferences::read(RegionalPreferences::sessionPath()));
+    application.setLanguageEnvironment({{"LANGUAGE", previous}});
 }
 
 namespace {

@@ -15,14 +15,14 @@ namespace cutefish::ui {
 // shaded per device pixel from its signed distance to the outline, which
 // also anti-aliases the outline, so its edge stays as thin and crisp at any
 // scale. What lies under it is blurred, saturated and, within the bezel of
-// the edge, bent in from further out, the colours bent apart by the
-// dispersion; then come the tint, white light whose strength follows the
-// height, a light around the pointer, a colour over all of that, and a line
-// just inside the outline whose colour turns from `edge` along the top and
-// bottom to `sideEdge` along the sides, by the square of the outline's
-// horizontal normal. A shadow falls outside the outline. Colours are
-// straight RGBA, 0 to 1; lengths are the view's units unless they say
-// device pixels.
+// the edge, read from further in, so it shows magnified there, the colours
+// bent apart by the dispersion; then come the tint, `multiply`, white light
+// added by the height, a light around the pointer and a colour over all of
+// that. A line just outside the outline turns from `edge` along the top
+// (`bottomEdge` along the bottom) to `sideEdge` along the sides, by the
+// square of the outline's horizontal normal, and a shadow falls outside it.
+// Colours are straight RGBA, 0 to 1; lengths are the view's units unless
+// they say device pixels.
 //
 // Panes with the same key in successive View::setGlass() calls move from
 // what shows to the new values over the new pane's duration, on the
@@ -39,8 +39,9 @@ struct ViewGlass
     double opacity = 1;
 
     double tint[4] = {1, 1, 1, 0};
-    // Points down from the top of the rect and the light's alpha there, in
-    // order; at most 24.
+    // Points down from the top of the rect and the light added there, in
+    // order; at most 24. They follow the outline in from the top and the
+    // bottom, fading out towards the sides.
     std::vector<PointF> light;
     double over[4] = {0, 0, 0, 0};
     double edge[4] = {0, 0, 0, 0};
@@ -50,12 +51,18 @@ struct ViewGlass
     double blur = 0;
     double saturation = 1;
     double bezel = 0;
+    // The bezel along the sides, where the outline's normal is horizontal;
+    // it turns into `bezel` towards the top and bottom by the square of the
+    // normal's vertical part. Negative: `bezel` all round.
+    double sideBezel = -1;
     double bend = 0;
     double profile = 2;
     // The share of the bend by which red is bent less and blue more.
     double dispersion = 0;
     // What lies under the middle shows magnified by this.
     double zoom = 1;
+    // The colour after the tint is raised to this power, channel by channel.
+    double exponent = 1;
 
     // Laid over the glass within `glowRadius` of the pointer while it is in
     // the window, strongest under it; the edge line brightens by
@@ -66,8 +73,8 @@ struct ViewGlass
     // Seconds the light takes to catch up with the pointer, easing out.
     double glowLag = 0;
 
-    // The pane fades out towards its top and bottom over these lengths,
-    // what lies under it shown less blurred there too.
+    // What lies under the pane is shown less blurred towards its top and
+    // bottom over these lengths, unblurred at the edge.
     double fadeTop = 0;
     double fadeBottom = 0;
 
@@ -83,6 +90,38 @@ struct ViewGlass
     double curve[4] = {0.25, 0.1, 0.25, 1};
     double shapeDuration = -1;
     double shapeCurve[4] = {0.25, 0.1, 0.25, 1};
+
+    // The line along the bottom, where `edge` gives the top's; a negative
+    // alpha takes `edge` there too.
+    double bottomEdge[4] = {0, 0, 0, -1};
+    // The line keeps to whole device pixels: it covers the pixel the outline
+    // falls in, so an outline between pixels does not spread it over two.
+    bool edgeOnPixels = false;
+    // The colour after the tint is multiplied by this, by its alpha.
+    double multiply[4] = {1, 1, 1, 0};
+    // What lies under the pane is blurred, averaged over blocks of two by two
+    // device pixels and scaled back up, so a fine pattern shows wider and
+    // shallower than one blur gives it.
+    bool blurAtHalfResolution = false;
+    // How far inside the outline the bend is largest, easing in from nothing
+    // at the outline over that depth; 0: largest at the outline.
+    double bendPeak = 0;
+    // How much the dispersion keeps to where the outline's normal is
+    // horizontal, 0 to 1: 0 all round, 1 along the sides only.
+    double dispersionSides = 0;
+    // The shadow eases in over this length outside the outline, so it is
+    // darkest that far out rather than at the outline.
+    double shadowGap = 0;
+    // How much the bend reads across by the depth from the sides and up or
+    // down by the depth from the top or bottom, as through a rectangular
+    // slab, rather than along the outline's normal, 0 to 1.
+    double bendAlongAxes = 0;
+    // The side line's red reaches this many device pixels further in than
+    // its other colours, most where the outline faces sideways.
+    double edgeSplit = 0;
+    // How far inside the sides the bend along the axes is largest; negative:
+    // `bendPeak`.
+    double sideBendPeak = -1;
 
     bool operator==(const ViewGlass&) const = default;
 };

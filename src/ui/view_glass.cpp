@@ -17,6 +17,7 @@
 #include "include/effects/SkImageFilters.h"
 #include "include/effects/SkRuntimeEffect.h"
 
+#include "ui/embedded_files.h"
 #include "ui/frame_client.h"
 #include "ui/painter.h"
 #include "ui/view.h"
@@ -92,125 +93,11 @@ static bool glows(const ViewGlass& pane)
     return pane.glow[3] > 0 && pane.glowRadius > 0 && pane.opacity > 0;
 }
 
-// Device pixels; `backdrop` is what lies under the pane, `blurred` the same
-// blurred.
-static const char* const kGlassShader = R"(
-uniform shader backdrop;
-uniform shader blurred;
-uniform float4 rect;
-uniform float radius;
-uniform float opacity;
-uniform float4 tint;
-uniform float2 light[24];
-uniform float4 over;
-uniform float4 edge;
-uniform float4 sideEdge;
-uniform float edgeWidth;
-uniform float saturation;
-uniform float bezel;
-uniform float bend;
-uniform float profile;
-uniform float dispersion;
-uniform float zoom;
-uniform float4 glow;
-uniform float3 glowAt;
-uniform float glowEdge;
-uniform float2 fade;
-uniform float4 shadow;
-uniform float shadowBlur;
-uniform float shadowOffset;
-
-// Signed distance to the outline, negative inside, and the corner offset q.
-float distanceTo(float2 p, out float2 q) {
-    float2 halfSize = (rect.zw - rect.xy) * 0.5;
-    float r = min(radius, min(halfSize.x, halfSize.y));
-    q = abs(p - (rect.xy + halfSize)) - halfSize + r;
-    return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
-}
-
-// Straight colour b laid over premultiplied a.
-half4 laid(half4 a, float4 b) {
-    return half4(b.rgb * b.a, b.a) + a * half(1.0 - b.a);
-}
-
-half4 main(float2 p) {
-    half4 under = backdrop.eval(p);
-    float2 q;
-    float d = distanceTo(p, q);
-    float coverage = clamp(0.5 - d, 0.0, 1.0);
-
-    half4 outside = under;
-    if (shadow.a > 0.0 && coverage < 1.0) {
-        float2 sq;
-        float sd = distanceTo(p - float2(0.0, shadowOffset), sq);
-        float fall = 1.0 - smoothstep(-shadowBlur * 0.5, shadowBlur, sd);
-        outside = laid(under, float4(shadow.rgb, shadow.a * fall * opacity));
-    }
-    if (coverage <= 0.0)
-        return outside;
-
-    float2 halfSize = (rect.zw - rect.xy) * 0.5;
-    float2 centre = rect.xy + halfSize;
-    float y = p.y - rect.y;
-    float shown = 1.0;
-    if (fade.x > 0.0)
-        shown = min(shown, clamp(y / fade.x, 0.0, 1.0));
-    if (fade.y > 0.0)
-        shown = min(shown, clamp((rect.w - p.y) / fade.y, 0.0, 1.0));
-
-    float2 side = sign(p - centre);
-    float2 normal;
-    if (q.x > 0.0 && q.y > 0.0)
-        normal = normalize(q) * side;
-    else if (q.x > q.y)
-        normal = float2(side.x, 0.0);
-    else
-        normal = float2(0.0, side.y);
-    float amount = bezel > 0.0 ? bend * pow(clamp(1.0 + d / bezel, 0.0, 1.0), profile) : 0.0;
-    float2 at = zoom != 1.0 ? centre + (p - centre) / zoom : p;
-    half4 colour = blurred.eval(at + normal * amount);
-    if (dispersion > 0.0 && amount > 0.0) {
-        colour.r = blurred.eval(at + normal * amount * (1.0 - dispersion)).r;
-        colour.b = blurred.eval(at + normal * amount * (1.0 + dispersion)).b;
-    }
-    if (shown < 1.0)
-        colour = mix(backdrop.eval(at + normal * amount), colour, half(shown));
-    half luma = dot(colour.rgb, half3(0.2126, 0.7152, 0.0722));
-    colour.rgb = clamp(mix(half3(luma), colour.rgb, half(saturation)), 0.0, colour.a);
-
-    colour = laid(colour, tint);
-    float alpha = light[0].y;
-    for (int i = 1; i < 24; i++) {
-        float2 a = light[i - 1];
-        float2 b = light[i];
-        if (y > a.x && b.x > a.x)
-            alpha = mix(a.y, b.y, clamp((y - a.x) / (b.x - a.x), 0.0, 1.0));
-    }
-    colour = laid(colour, float4(1.0, 1.0, 1.0, alpha));
-    float lit = 0.0;
-    if (glowAt.z > 0.0 && glow.a > 0.0)
-        lit = glow.a * (1.0 - smoothstep(0.0, glowAt.z, length(p - glowAt.xy)));
-    colour = laid(colour, float4(glow.rgb, lit));
-    colour = laid(colour, over);
-
-    // The pixel's share of the band between the outline and edgeWidth in.
-    float band = clamp(min(d + 0.5, 0.0) - max(d - 0.5, -edgeWidth), 0.0, 1.0);
-    float sideways = 1.0;
-    if (q.x > 0.0 && q.y > 0.0)
-        sideways = q.x * q.x / dot(q, q);
-    else if (q.y > q.x)
-        sideways = 0.0;
-    float4 line = mix(edge, sideEdge, sideways);
-    line = mix(line, float4(glow.rgb, 1.0), clamp(lit * glowEdge, 0.0, 1.0));
-    colour = laid(colour, float4(line.rgb, line.a * band));
-    return mix(outside, colour, half(coverage * shown * opacity));
-}
-)";
-
 // How far past its rect a pane draws or reads, in its units.
 static double reachOf(const ViewGlass& glass)
 {
-    return std::max(glass.shadowBlur + std::abs(glass.shadowOffset), glass.bend + glass.blur * 2) + 1;
+    return std::max(glass.shadowBlur + std::abs(glass.shadowOffset) + glass.shadowGap,
+               std::abs(glass.bend) + glass.blur * 2) + 1;
 }
 
 static RectF reachRect(const ViewGlass& glass)
@@ -272,10 +159,21 @@ static double mixed(double a, double b, double t)
     return a + (b - a) * t;
 }
 
+// Premultiplied, so a colour fading out keeps its hue on the way and the
+// pane passes no shade darker or lighter than both ends.
 static void mixColour(double* into, const double* a, const double* b, double t)
 {
-    for (int i = 0; i < 4; ++i)
-        into[i] = mixed(a[i], b[i], t);
+    const double alpha = mixed(a[3], b[3], t);
+    for (int i = 0; i < 3; ++i) {
+        const double premultiplied = mixed(a[i] * a[3], b[i] * b[3], t);
+        into[i] = alpha > 0 ? premultiplied / alpha : mixed(a[i], b[i], t);
+    }
+    into[3] = alpha;
+}
+
+static const double* bottomEdgeOf(const ViewGlass& glass)
+{
+    return glass.bottomEdge[3] < 0 ? glass.edge : glass.bottomEdge;
 }
 
 // The same pane, however it was asked to get there.
@@ -304,15 +202,25 @@ static ViewGlass between(const ViewGlass& a, const ViewGlass& b, double t, doubl
     }
     mixColour(glass.over, a.over, b.over, t);
     mixColour(glass.edge, a.edge, b.edge, t);
+    mixColour(glass.bottomEdge, bottomEdgeOf(a), bottomEdgeOf(b), t);
     mixColour(glass.sideEdge, a.sideEdge, b.sideEdge, t);
     glass.edgeDevicePixels = mixed(a.edgeDevicePixels, b.edgeDevicePixels, t);
     glass.blur = mixed(a.blur, b.blur, t);
     glass.saturation = mixed(a.saturation, b.saturation, t);
     glass.bezel = mixed(a.bezel, b.bezel, t);
+    glass.sideBezel = mixed(a.sideBezel, b.sideBezel, t);
     glass.bend = mixed(a.bend, b.bend, t);
     glass.profile = mixed(a.profile, b.profile, t);
     glass.dispersion = mixed(a.dispersion, b.dispersion, t);
     glass.zoom = mixed(a.zoom, b.zoom, t);
+    glass.exponent = mixed(a.exponent, b.exponent, t);
+    mixColour(glass.multiply, a.multiply, b.multiply, t);
+    glass.bendPeak = mixed(a.bendPeak, b.bendPeak, t);
+    glass.dispersionSides = mixed(a.dispersionSides, b.dispersionSides, t);
+    glass.shadowGap = mixed(a.shadowGap, b.shadowGap, s);
+    glass.bendAlongAxes = mixed(a.bendAlongAxes, b.bendAlongAxes, t);
+    glass.edgeSplit = mixed(a.edgeSplit, b.edgeSplit, t);
+    glass.sideBendPeak = mixed(a.sideBendPeak, b.sideBendPeak, t);
     mixColour(glass.glow, a.glow, b.glow, t);
     glass.glowRadius = mixed(a.glowRadius, b.glowRadius, t);
     glass.glowEdge = mixed(a.glowEdge, b.glowEdge, t);
@@ -323,6 +231,24 @@ static ViewGlass between(const ViewGlass& a, const ViewGlass& b, double t, doubl
     glass.shadowBlur = mixed(a.shadowBlur, b.shadowBlur, s);
     glass.shadowOffset = mixed(a.shadowOffset, b.shadowOffset, s);
     return glass;
+}
+
+// Where the track is at the frame time, from its start.
+static void advance(GlassTrack& track, uint64_t frameTimeNs)
+{
+    const double elapsed = double(frameTimeNs - std::min(frameTimeNs, track.start)) / 1e9;
+    const auto progress = [elapsed](double duration) {
+        return duration > 0 ? std::min(elapsed / duration, 1.0) : 1.0;
+    };
+    const double t = progress(track.to.duration);
+    const double s = track.to.shapeDuration < 0 ? t : progress(track.to.shapeDuration);
+    if (t >= 1 && s >= 1) {
+        track.shown = track.to;
+        track.moving = false;
+        return;
+    }
+    const double* shapeCurve = track.to.shapeDuration < 0 ? track.to.curve : track.to.shapeCurve;
+    track.shown = between(track.from, track.to, eased(track.to.curve, t), eased(shapeCurve, s));
 }
 
 void View::setGlass(std::vector<ViewGlass> glass)
@@ -366,6 +292,12 @@ void View::setGlass(std::vector<ViewGlass> glass)
             track.shown = track.from;
             track.moving = true;
             moves = true;
+            // Declared while a frame is drawn, the move shows its first
+            // refresh in that frame.
+            if (window->m_rendering && window->m_frameTimeNs > window->m_refreshNs) {
+                track.start = window->m_frameTimeNs - window->m_refreshNs;
+                advance(track, window->m_frameTimeNs);
+            }
         } else {
             track.shown = pane;
         }
@@ -441,23 +373,12 @@ bool View::tickGlass(Window* window, uint64_t frameTimeNs)
         for (GlassTrack& track : state.tracks) {
             if (!track.moving)
                 continue;
+            // The first frame that shows a move shows it one refresh along.
             if (!track.start)
-                track.start = frameTimeNs;
+                track.start = frameTimeNs - std::min(frameTimeNs, window->m_refreshNs);
             damagePane(view, track.shown);
-            const double elapsed = double(frameTimeNs - track.start) / 1e9;
-            const auto progress = [elapsed](double duration) {
-                return duration > 0 ? std::min(elapsed / duration, 1.0) : 1.0;
-            };
-            const double t = progress(track.to.duration);
-            const double s = track.to.shapeDuration < 0 ? t : progress(track.to.shapeDuration);
-            if (t >= 1 && s >= 1) {
-                track.shown = track.to;
-                track.moving = false;
-            } else {
-                const double* shapeCurve = track.to.shapeDuration < 0 ? track.to.curve : track.to.shapeCurve;
-                track.shown = between(track.from, track.to, eased(track.to.curve, t), eased(shapeCurve, s));
-                moving = true;
-            }
+            advance(track, frameTimeNs);
+            moving = moving || track.moving;
             damagePane(view, track.shown);
         }
         std::erase_if(state.tracks, [](const GlassTrack& track) { return track.leaving && !track.moving; });
@@ -561,7 +482,10 @@ void View::paintGlass(Painter& painter, double opacity) const
     if (known == all.end())
         return;
     static const sk_sp<SkRuntimeEffect> effect = [] {
-        SkRuntimeEffect::Result result = SkRuntimeEffect::MakeForShader(SkString(kGlassShader));
+        // data/shaders/glass.sksl, in device pixels; `backdrop` is what lies
+        // under the pane, `blurred` the same blurred.
+        SkRuntimeEffect::Result result =
+            SkRuntimeEffect::MakeForShader(SkString(embeddedText("glass.sksl").c_str()));
         if (!result.effect)
             fprintf(stderr, "cutefish-toolkit: %s\n", result.errorText.c_str());
         return result.effect;
@@ -616,14 +540,20 @@ void View::paintGlass(Painter& painter, double opacity) const
         builder.uniform("light").set(light, 48);
         builder.uniform("over") = colour(glass.over);
         builder.uniform("edge") = colour(glass.edge);
+        builder.uniform("bottomEdge") = colour(bottomEdgeOf(glass));
         builder.uniform("sideEdge") = colour(glass.sideEdge);
         builder.uniform("edgeWidth") = float(glass.edgeDevicePixels);
+        builder.uniform("edgeOnPixels") = glass.edgeOnPixels ? 1.0f : 0.0f;
+        builder.uniform("multiply") = colour(glass.multiply);
+        builder.uniform("halfResolution") = glass.blurAtHalfResolution ? 1.0f : 0.0f;
         builder.uniform("saturation") = float(glass.saturation);
         builder.uniform("bezel") = float(glass.bezel) * unit;
+        builder.uniform("sideBezel") = glass.sideBezel < 0 ? -1.0f : float(glass.sideBezel) * unit;
         builder.uniform("bend") = float(glass.bend) * unit;
         builder.uniform("profile") = float(std::max(glass.profile, 0.01));
         builder.uniform("dispersion") = float(glass.dispersion);
         builder.uniform("zoom") = float(std::max(glass.zoom, 0.01));
+        builder.uniform("exponent") = float(std::max(glass.exponent, 0.01));
         builder.uniform("glow") = colour(glass.glow);
         if (pointer && glass.glowRadius > 0) {
             const PointF light = glass.glowLag > 0 ? *lagging : *pointer;
@@ -637,6 +567,12 @@ void View::paintGlass(Painter& painter, double opacity) const
         builder.uniform("shadow") = colour(glass.shadow);
         builder.uniform("shadowBlur") = std::max(float(glass.shadowBlur) * unit, 0.5f);
         builder.uniform("shadowOffset") = float(glass.shadowOffset) * unit;
+        builder.uniform("bendPeak") = float(glass.bendPeak) * unit;
+        builder.uniform("dispersionSides") = float(std::clamp(glass.dispersionSides, 0.0, 1.0));
+        builder.uniform("shadowGap") = float(glass.shadowGap) * unit;
+        builder.uniform("bendAlongAxes") = float(std::clamp(glass.bendAlongAxes, 0.0, 1.0));
+        builder.uniform("edgeSplit") = float(glass.edgeSplit);
+        builder.uniform("sideBendPeak") = glass.sideBendPeak < 0 ? -1.0f : float(glass.sideBendPeak) * unit;
 
         const float sigma = float(glass.blur) * unit / 2;
         std::string_view children[] = {"backdrop", "blurred"};

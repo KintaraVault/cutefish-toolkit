@@ -22,6 +22,7 @@
 #include "ui/bubble_shape.h"
 #include "ui/button.h"
 #include "ui/combo_box.h"
+#include "ui/design_metrics.h"
 #include "ui/drag.h"
 #include "ui/embedded_host.h"
 #include "ui/embedded_window.h"
@@ -191,10 +192,10 @@ static void type(EmbeddedWindow& window, uint32_t keysym, std::string text = {})
     window.key(event, false);
 }
 
-// The middle of a menu's row: five pixels of margin and rows of 26.
+// The middle of a menu's row, after the five-pixel top margin.
 static PointF menuRow(int row)
 {
-    return {40, 5 + row * 26 + 13.0};
+    return {40, 5 + (row + 0.5) * design::menuRowHeight};
 }
 
 TEST(EmbeddedHostTest, MenuOpensAsAHostPlacedPopup)
@@ -226,7 +227,7 @@ TEST(EmbeddedHostTest, MenuOpensAsAHostPlacedPopup)
     EXPECT_EQ(popup->popupPlacement().gravity, PopupAnchor::BottomRight);
     EXPECT_EQ(popup->scale(), 1.5);
     EXPECT_GT(popup->size().width, 140);
-    EXPECT_EQ(popup->size().height, 5 + 26 + 26 + 5);
+    EXPECT_EQ(popup->size().height, 2 * design::menuRowHeight + 2 * 5);
     // The menu's body is blurred behind, at the window radius.
     EXPECT_EQ(popup->blurRect(), (RectF{0, 0, popup->size().width, popup->size().height}));
     EXPECT_GT(popup->blurRadius(), 0);
@@ -308,7 +309,7 @@ TEST(EmbeddedHostTest, SubmenusOpenBesideTheirRows)
     EXPECT_TRUE(placement.slide);
     EXPECT_DOUBLE_EQ(placement.anchorRect.x, 2);
     EXPECT_DOUBLE_EQ(placement.anchorRect.right(), root->size().width - 2);
-    EXPECT_DOUBLE_EQ(placement.anchorRect.y, 26);
+    EXPECT_DOUBLE_EQ(placement.anchorRect.y, design::menuRowHeight);
     sub->render();
 
     // Another row takes it down.
@@ -749,7 +750,7 @@ TEST(EmbeddedHostTest, BubbleMenusPointAtTheirTarget)
     // MenuSurface's implicit size: rows, margins and the arrow's length.
     const SizeF size = menu.implicitSize(&window);
     EXPECT_EQ(size.width, 320 + 2 * 5);
-    EXPECT_EQ(size.height, 26 + 12 + 26 + 2 * 5 + 6);
+    EXPECT_EQ(size.height, 2 * design::menuRowHeight + design::menuSeparatorHeight + 2 * 5 + 6);
     EXPECT_GT(menu.minimumEdgeLength(), 40);
 
     menu.popupAt(&window, {580, 10});
@@ -902,7 +903,7 @@ TEST(EmbeddedHostTest, PopupAtAsksAboutToShowOnce)
     EXPECT_EQ(asked, 1);
     ASSERT_EQ(host.open.size(), 1u);
     // The row it added counts in the size.
-    EXPECT_EQ(host.open[0]->size().height, 26 + 2 * 5);
+    EXPECT_EQ(host.open[0]->size().height, design::menuRowHeight + 2 * 5);
     menu.close();
     runLoop(10ms);
 }
@@ -939,7 +940,7 @@ TEST(EmbeddedHostTest, OpenMenusTakeChangedRows)
     menu.itemsChanged();
     runLoop(10ms);
     ASSERT_EQ(host.repositioned.size(), 1u);
-    EXPECT_EQ(popup->size().height, 3 * 26 + 2 * 5);
+    EXPECT_EQ(popup->size().height, 3 * design::menuRowHeight + 2 * 5);
     // The submenu's row is still there: kept, and it has the keys.
     EXPECT_TRUE(more->isOpen());
     type(window, XKB_KEY_Left);
@@ -1159,9 +1160,8 @@ TEST(EmbeddedHostTest, TextFieldsCarryInputHints)
     EXPECT_EQ(host.textInput.back()->hints, uint32_t(SensitiveDataHint));
 }
 
-// fontconfig's rgba=rgb, as Cutefish's own fontconfig file sets it on the
-// test machine: text over a translucent window gets the per-channel
-// subpixel blend, coloured fringes and the average coverage as alpha.
+// fontconfig's rgba=rgb, as the tests' fontconfig file sets it: text over a
+// translucent window gets the per-channel subpixel blend, coloured fringes and the average coverage as alpha.
 TEST(EmbeddedHostTest, SubpixelTextOverTranslucentWindows)
 {    EmbeddedWindow window;
     auto content = std::make_unique<Free>();

@@ -49,7 +49,8 @@ TEST(MimeDatabaseTest, ResolvesAliasesAndParents)
     EXPECT_EQ(mime::canonicalName("no/such-type"), "");
     const std::vector<std::string> aliases = mime::aliases("application/pdf");
     EXPECT_NE(std::find(aliases.begin(), aliases.end(), "application/x-pdf"), aliases.end());
-    EXPECT_EQ(mime::parents("text/x-csrc"), std::vector<std::string>{"text/plain"});
+    // Newer shared-mime-info releases put C++ and Objective-C in between.
+    EXPECT_TRUE(mime::inherits("text/x-csrc", "text/plain"));
     // Without parents of its own: application/octet-stream, the fallback.
     EXPECT_EQ(mime::parents("image/png"), std::vector<std::string>{"application/octet-stream"});
     EXPECT_TRUE(mime::parents("inode/directory").empty());
@@ -156,7 +157,6 @@ TEST(MimeTest, DetectsTypesOfFiles)
         {"picture", "image/png", "image-png", "image-x-generic"},
         {"picture.txt", "text/plain", "text-plain", "text-x-generic"},
         {"readme_noext", "text/x-readme", "text-x-readme", "text-x-generic"},
-        {"script", "application/x-shellscript", "application-x-shellscript", "text-x-script"},
         {"video.ts", "text/vnd.trolltech.linguist", "text-vnd.trolltech.linguist", "text-x-generic"},
     };
     for (const Expected& entry : expected) {
@@ -165,6 +165,12 @@ TEST(MimeTest, DetectsTypesOfFiles)
         EXPECT_EQ(mime::iconName(type), entry.icon) << entry.name;
         EXPECT_EQ(mime::genericIconName(type), entry.genericIcon) << entry.name;
     }
+    // shared-mime-info has used both text/ and application/ for shell scripts.
+    const std::string script = mime::typeForFile((directory / "script").string());
+    EXPECT_EQ(script, mime::canonicalName("application/x-shellscript"));
+    EXPECT_EQ(mime::iconName(script), script.starts_with("text/") ? "text-x-shellscript"
+                                                                : "application-x-shellscript");
+    EXPECT_EQ(mime::genericIconName(script), "text-x-script");
     fs::remove_all(directory);
 
     EXPECT_EQ(mime::typeForFileName("a.tar.gz"), "application/x-compressed-tar");
